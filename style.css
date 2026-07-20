@@ -1146,3 +1146,297 @@ body > *:not(.geo-canvas) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   .geo-canvas { display: none; }
 }
+
+/* ===========================
+   V3 — NAV z logo partnera
+   =========================== */
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.nav-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,0.15);
+}
+
+.nav-partner-logo {
+  display: flex;
+  align-items: center;
+  opacity: 0.75;
+  transition: opacity 0.2s;
+}
+
+.nav-partner-logo:hover { opacity: 1; }
+
+.nav-partner-logo img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+/* Nav kompaktowy — mniejszy padding */
+.nav {
+  padding: 0.85rem 2.5rem !important;
+}
+
+.nav.scrolled {
+  padding-top: 0.65rem !important;
+  padding-bottom: 0.65rem !important;
+}
+
+/* Hero — zdjęcie od razu po navie */
+.hero-content {
+  padding-top: 7rem !important;
+}
+
+/* SR-only */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===========================
+   WYSZUKIWARKA
+   =========================== */
+
+.search-widget {
+  margin-top: 2.5rem;
+  background: rgba(11,12,10,0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(201,169,110,0.25);
+  border-radius: 8px;
+  padding: 1.5rem 1.75rem;
+  max-width: 780px;
+}
+
+.search-step { display: block; }
+.search-step-hidden { display: none; }
+
+.search-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-gold);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.step-back {
+  background: none;
+  border: none;
+  color: var(--c-gold);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.step-back:hover { opacity: 1; }
+
+.search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.search-row-email {
+  margin-top: 0.9rem;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  position: relative;
+  padding: 0 1rem 0 2.75rem;
+}
+
+.search-field-wide { flex: 1.5; }
+
+.search-icon {
+  position: absolute;
+  left: 0.9rem;
+  color: var(--c-gold);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--c-white);
+  font-family: var(--ff-body);
+  font-size: 0.92rem;
+  font-weight: 300;
+  width: 100%;
+  padding: 0.9rem 0;
+}
+
+.search-input::placeholder { color: var(--c-muted-2); }
+
+.search-divider {
+  width: 1px;
+  background: rgba(255,255,255,0.1);
+  margin: 0.5rem 0;
+  flex-shrink: 0;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1.5rem;
+  background: rgba(201,169,110,0.15);
+  border: none;
+  border-left: 1px solid rgba(201,169,110,0.25);
+  color: var(--c-gold);
+  font-family: var(--ff-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.search-btn:hover { background: rgba(201,169,110,0.25); }
+
+.search-btn-gold {
+  background: var(--c-gold);
+  color: var(--c-bg);
+  border-left-color: transparent;
+}
+
+.search-btn-gold:hover { background: var(--c-gold-l); }
+
+/* Mapa placeholder */
+.map-placeholder {
+  position: relative;
+  height: 240px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1a1f1a;
+  margin-bottom: 0.9rem;
+  border: 1px solid rgba(201,169,110,0.2);
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(201,169,110,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,169,110,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.map-pin {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -100%);
+  animation: pinDrop 0.4s 0.2s ease backwards;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+}
+
+.map-geo-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map-geo-lines svg { width: 100%; height: 100%; }
+
+.map-parcel-label {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 20px);
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--c-gold);
+  background: rgba(11,12,10,0.85);
+  padding: 0.3rem 0.6rem;
+  border-radius: 3px;
+  border: 1px solid rgba(201,169,110,0.3);
+  white-space: nowrap;
+}
+
+.map-hint {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: var(--c-muted-2);
+  white-space: nowrap;
+}
+
+/* Krok 3 — potwierdzenie */
+.search-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0.5rem;
+  gap: 0.75rem;
+}
+
+.confirm-icon { margin-bottom: 0.25rem; }
+
+.confirm-title {
+  font-family: var(--ff-disp);
+  font-size: 1.6rem;
+  font-weight: 300;
+  color: var(--c-white);
+}
+
+.confirm-text {
+  font-size: 0.9rem;
+  color: var(--c-muted);
+  line-height: 1.7;
+  max-width: 460px;
+}
+
+.confirm-text strong { color: var(--c-gold); font-weight: 500; }
+
+.confirm-sub {
+  font-size: 0.75rem;
+  color: var(--c-muted-2);
+}
+
+@keyframes pinDrop {
+  from { opacity: 0; transform: translate(-50%, -130%); }
+  to   { opacity: 1; transform: translate(-50%, -100%); }
+}
+
+/* Responsive wyszukiwarka */
+@media (max-width: 700px) {
+  .search-row { flex-direction: column; border-radius: 6px; }
+  .search-field { padding: 0.75rem 1rem 0.75rem 2.75rem; }
+  .search-divider { width: auto; height: 1px; margin: 0 0.75rem; }
+  .search-btn { justify-content: center; padding: 0.9rem 1rem; border-left: none; border-top: 1px solid rgba(201,169,110,0.2); }
+  .search-btn-gold { border-top-color: transparent; }
+  .nav-partner-logo { display: none; }
+  .nav-divider { display: none; }
+}

@@ -79,3 +79,63 @@
     setTimeout(() => m.remove(), 5000);
   }
 })();
+
+// ===========================
+// WYSZUKIWARKA — 3 kroki
+// ===========================
+(function() {
+  const step1 = document.getElementById('step-1');
+  const step2 = document.getElementById('step-2');
+  const step3 = document.getElementById('step-3');
+  const btnNext = document.getElementById('search-next');
+  const btnBack = document.getElementById('step-back');
+  const btnSubmit = document.getElementById('search-submit');
+  const parcelLabel = document.getElementById('map-parcel-label');
+
+  if (!btnNext) return;
+
+  btnNext.addEventListener('click', function() {
+    const miejscowosc = document.getElementById('s-miejscowosc').value.trim();
+    const dzialka = document.getElementById('s-dzialka').value.trim();
+
+    if (!miejscowosc || !dzialka) {
+      pulse(document.getElementById('s-miejscowosc'), !miejscowosc);
+      pulse(document.getElementById('s-dzialka'), !dzialka);
+      return;
+    }
+
+    // Pokaż krok 2 z danymi działki na mapie
+    if (parcelLabel) {
+      parcelLabel.textContent = miejscowosc.toUpperCase() + ' · DZ. ' + dzialka.toUpperCase();
+    }
+
+    step1.classList.add('search-step-hidden');
+    step2.classList.remove('search-step-hidden');
+  });
+
+  if (btnBack) {
+    btnBack.addEventListener('click', function() {
+      step2.classList.add('search-step-hidden');
+      step1.classList.remove('search-step-hidden');
+    });
+  }
+
+  if (btnSubmit) {
+    btnSubmit.addEventListener('click', function() {
+      const email = document.getElementById('s-email').value.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        pulse(document.getElementById('s-email'), true);
+        return;
+      }
+      step2.classList.add('search-step-hidden');
+      step3.classList.remove('search-step-hidden');
+    });
+  }
+
+  function pulse(el, condition) {
+    if (!condition || !el) return;
+    el.style.borderBottom = '1px solid #c9a96e';
+    el.focus();
+    setTimeout(() => { el.style.borderBottom = ''; }, 2000);
+  }
+})();
