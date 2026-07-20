@@ -322,6 +322,11 @@ body > *:not(.geo-canvas) {
 .hero-photo {
   position: absolute;
   inset: 0;
+  background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1800&q=80&fit=crop');
+  background-size: cover;
+  background-position: center 40%;
+  /* Fallback gradient jeśli zdjęcie nie załaduje się */
+  background-color: #1a2a1a;
 }
 
 .hero-photo img {
@@ -1173,10 +1178,11 @@ body > *:not(.geo-canvas) {
 .nav-partner-logo:hover { opacity: 1; }
 
 .nav-partner-logo img {
-  height: 28px;
+  height: 22px;
   width: auto;
   object-fit: contain;
   filter: brightness(0) invert(1);
+  opacity: 0.85;
 }
 
 /* Nav kompaktowy — mniejszy padding */
