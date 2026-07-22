@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Śniadecki Intelligence — Platforma AI dla rynku gruntów</title>
+  <meta name="description" content="Automatyczny sourcing gruntów, analiza MPZP, gotowe pakiety inwestycyjne i ekosystem partnerów — napędzane przez AI." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- GEODETIC SVG OVERLAY — przebiega przez całą stronę -->
+  <div class="geo-canvas" aria-hidden="true">
+    <svg class="geo-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+      <!-- Główne podziały geodezyjne -->
+      <line class="geo-line geo-line-primary" x1="18%" y1="0" x2="12%" y2="100%"/>
+      <line class="geo-line geo-line-primary" x1="42%" y1="0" x2="38%" y2="100%"/>
+      <line class="geo-line geo-line-primary" x1="67%" y1="0" x2="71%" y2="100%"/>
+      <line class="geo-line geo-line-primary" x1="88%" y1="0" x2="92%" y2="100%"/>
+      <!-- Linie poprzeczne -->
+      <line class="geo-line geo-line-secondary" x1="0" y1="22%" x2="100%" y2="19%"/>
+      <line class="geo-line geo-line-secondary" x1="0" y1="41%" x2="100%" y2="44%"/>
+      <line class="geo-line geo-line-secondary" x1="0" y1="63%" x2="100%" y2="60%"/>
+      <line class="geo-line geo-line-secondary" x1="0" y1="81%" x2="100%" y2="83%"/>
+      <!-- Ukośne granice działek -->
+      <line class="geo-line geo-line-tertiary" x1="0" y1="35%" x2="28%" y2="0"/>
+      <line class="geo-line geo-line-tertiary" x1="55%" y1="0" x2="100%" y2="48%"/>
+      <line class="geo-line geo-line-tertiary" x1="0" y1="72%" x2="45%" y2="100%"/>
+      <line class="geo-line geo-line-tertiary" x1="72%" y1="100%" x2="100%" y2="65%"/>
+      <!-- Punkty geodezyjne -->
+      <circle class="geo-point" cx="18%" cy="22%" r="3"/>
+      <circle class="geo-point" cx="42%" cy="41%" r="3"/>
+      <circle class="geo-point" cx="67%" cy="63%" r="3"/>
+      <circle class="geo-point" cx="88%" cy="81%" r="3"/>
+      <circle class="geo-point" cx="12%" cy="63%" r="2"/>
+      <circle class="geo-point" cx="71%" cy="19%" r="2"/>
+      <!-- Oznaczenia działek (małe prostokąty) -->
+      <rect class="geo-parcel" x="19%" y="23%" width="22%" height="17%"/>
+      <rect class="geo-parcel" x="43%" y="20%" width="23%" height="20%"/>
+      <rect class="geo-parcel" x="13%" y="42%" width="28%" height="20%"/>
+      <rect class="geo-parcel" x="43%" y="45%" width="27%" height="16%"/>
+    </svg>
+  </div>
+
+  <!-- NAV — kompaktowy -->
+  <nav class="nav" id="nav">
+    <div class="nav-left">
+      <a href="#" class="nav-logo">
+        <span class="logo-s">Ś</span><span class="logo-rest">niadecki</span>
+        <span class="logo-tag">Intelligence</span>
+      </a>
+      <div class="nav-divider" aria-hidden="true"></div>
+      <a href="https://gruntowo.com" target="_blank" rel="noopener" class="nav-partner-logo" aria-label="Gruntowo.com — portal z gruntami">
+        <img src="gruntowo_transparent.png" alt="Gruntowo.com" />
+      </a>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#sourcing">Sourcing</a></li>
+      <li><a href="#oferty">Oferty</a></li>
+      <li><a href="#ekosystem">Ekosystem</a></li>
+      <li><a href="#kontakt" class="nav-cta">Porozmawiajmy</a></li>
+    </ul>
+    <button class="nav-burger" id="burger" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+
+  <!-- MOBILE MENU -->
+  <div class="mobile-menu" id="mobile-menu">
+    <ul>
+      <li><a href="#sourcing" class="mm-link">Sourcing</a></li>
+      <li><a href="#oferty" class="mm-link">Oferty</a></li>
+      <li><a href="#ekosystem" class="mm-link">Ekosystem</a></li>
+      <li><a href="#kontakt" class="mm-link">Kontakt</a></li>
+    </ul>
+  </div>
+
+  <!-- HERO — pełnoekranowe zdjęcie + wyszukiwarka -->
+  <section class="hero">
+    <div class="hero-photo" id="hero-photo">
+      <img src="hero.jpeg" alt="Widok lotniczy działek" loading="eager" />
+      <div class="hero-photo-overlay"></div>
+    </div>
+
+    <div class="hero-content container">
+      <p class="hero-eyebrow">Śniadecki Development × AI</p>
+      <h1 class="hero-headline">
+        Grunt pod<br />
+        <em>właściwą decyzję</em>
+      </h1>
+      <p class="hero-sub">
+        Wpisz miejscowość i numer działki — w ciągu 6 godzin<br />
+        otrzymasz pełny raport inwestycyjny na swoją skrzynkę.
+      </p>
+
+      <!-- WYSZUKIWARKA -->
+      <div class="search-widget" id="search-widget">
+        <!-- Krok 1: wpisz dane działki -->
+        <div class="search-step" id="step-1">
+          <div class="search-label">Zbadaj nieruchomość</div>
+          <div class="search-row">
+            <div class="search-field">
+              <label for="s-miejscowosc" class="sr-only">Miejscowość</label>
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <input type="text" id="s-miejscowosc" class="search-input" placeholder="Miejscowość, np. Poznań" autocomplete="off" />
+            </div>
+            <div class="search-divider" aria-hidden="true"></div>
+            <div class="search-field">
+              <label for="s-dzialka" class="sr-only">Numer działki</label>
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <input type="text" id="s-dzialka" class="search-input" placeholder="Nr działki, np. 142/3" autocomplete="off" />
+            </div>
+            <button class="search-btn" id="search-next" type="button">
+              Wskaż na mapie
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Krok 2: mapa + email -->
+        <div class="search-step search-step-hidden" id="step-2">
+          <div class="search-label">
+            <button class="step-back" id="step-back" type="button" aria-label="Wróć">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            Potwierdź lokalizację na mapie
+          </div>
+          <div class="map-placeholder" id="map-placeholder" role="img" aria-label="Interaktywna mapa lokalizacji działki">
+            <div class="map-grid" aria-hidden="true"></div>
+            <div class="map-pin" aria-hidden="true">
+              <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 0C7.163 0 0 7.163 0 16c0 10 16 24 16 24s16-14 16-24C32 7.163 24.837 0 16 0z" fill="#c9a96e"/>
+                <circle cx="16" cy="16" r="6" fill="#0b0c0a"/>
+              </svg>
+            </div>
+            <div class="map-parcel-label" id="map-parcel-label" aria-live="polite"></div>
+            <div class="map-geo-lines" aria-hidden="true">
+              <svg viewBox="0 0 600 260" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="90" x2="600" y2="80" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="5 8" opacity="0.5"/>
+                <line x1="0" y1="170" x2="600" y2="180" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="5 8" opacity="0.4"/>
+                <line x1="200" y1="0" x2="190" y2="260" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="5 8" opacity="0.5"/>
+                <line x1="420" y1="0" x2="430" y2="260" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="5 8" opacity="0.4"/>
+                <rect x="191" y="81" width="228" height="88" fill="rgba(201,169,110,0.08)" stroke="#c9a96e" stroke-width="1" stroke-dasharray="4 6" opacity="0.7"/>
+              </svg>
+            </div>
+            <p class="map-hint">Działka zaznaczona automatycznie na podstawie podanych danych</p>
+          </div>
+          <div class="search-row search-row-email">
+            <div class="search-field search-field-wide">
+              <label for="s-email" class="sr-only">Adres e-mail</label>
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <input type="email" id="s-email" class="search-input" placeholder="Twój adres e-mail — tam wyślemy raport" autocomplete="email" />
+            </div>
+            <button class="search-btn search-btn-gold" id="search-submit" type="button">
+              Zbadaj nieruchomość
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Krok 3: potwierdzenie -->
+        <div class="search-step search-step-hidden" id="step-3">
+          <div class="search-confirm">
+            <div class="confirm-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#c9a96e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <h3 class="confirm-title">Raport w drodze!</h3>
+            <p class="confirm-text">Dziękujemy — otrzymaliśmy Twoje zgłoszenie. Nasz zespół przeanalizuje działkę i wyśle pełny raport inwestycyjny na podany adres e-mail <strong>w ciągu 6 godzin</strong>.</p>
+            <p class="confirm-sub">Sprawdź folder „Oferty" lub „Spam", jeśli wiadomość nie dotrze w ciągu kilku minut.</p>
+          </div>
+        </div>
+      </div>
+      <!-- koniec wyszukiwarki -->
+
+      <!-- Powered by Gruntowo -->
+      <div class="hero-powered">
+        <span class="hero-powered-label">Dane gruntów we współpracy z</span>
+        <a href="https://gruntowo.com" target="_blank" rel="noopener" class="hero-powered-logo">
+          <img src="gruntowo_transparent.png" alt="Gruntowo.com" />
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Pasek statystyk -->
+    <div class="hero-stats-bar">
+      <div class="container hero-stats-inner">
+        <div class="hstat">
+          <span class="hstat-num">44 180</span>
+          <span class="hstat-unit">m²</span>
+          <span class="hstat-label">banku ziemi</span>
+        </div>
+        <div class="hstat-sep" aria-hidden="true"></div>
+        <div class="hstat">
+          <span class="hstat-num">24/7</span>
+          <span class="hstat-label">monitoring rynku</span>
+        </div>
+        <div class="hstat-sep" aria-hidden="true"></div>
+        <div class="hstat">
+          <span class="hstat-num">2 min</span>
+          <span class="hstat-label">analiza MPZP</span>
+        </div>
+        <div class="hstat-sep" aria-hidden="true"></div>
+        <div class="hstat">
+          <span class="hstat-num">3</span>
+          <span class="hstat-label">formaty wyjścia</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTRO z zdjęciem bocznym -->
+  <section class="intro-section">
+    <div class="container">
+      <div class="intro-grid">
+        <div class="intro-photo-col">
+          <div class="intro-photo-frame">
+            <img
+              src="https://images.unsplash.com/photo-1526958097901-5e6d742d3371?w=900&q=80&fit=crop"
+              alt="Widok z drona na pola i działki z podziałem"
+              loading="lazy"
+            />
+            <!-- Geodezyjne oznaczenia na zdjęciu -->
+            <div class="photo-geo-overlay" aria-hidden="true">
+              <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="110" x2="400" y2="95" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="4 6" opacity="0.6"/>
+                <line x1="160" y1="0" x2="145" y2="300" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="4 6" opacity="0.6"/>
+                <line x1="260" y1="0" x2="275" y2="300" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="4 6" opacity="0.5"/>
+                <circle cx="160" cy="110" r="4" fill="none" stroke="#c9a96e" stroke-width="1" opacity="0.8"/>
+                <circle cx="160" cy="110" r="1.5" fill="#c9a96e" opacity="0.9"/>
+                <circle cx="260" cy="95" r="3" fill="none" stroke="#c9a96e" stroke-width="1" opacity="0.7"/>
+                <text x="168" y="106" font-size="8" fill="#c9a96e" opacity="0.8" font-family="Inter, sans-serif" letter-spacing="0.05em">NR 142/3</text>
+                <text x="268" y="91" font-size="8" fill="#c9a96e" opacity="0.7" font-family="Inter, sans-serif" letter-spacing="0.05em">NR 142/4</text>
+                <rect x="50" y="120" width="100" height="70" fill="none" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="3 5" opacity="0.5"/>
+                <rect x="165" y="108" width="85" height="80" fill="none" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="3 5" opacity="0.5"/>
+              </svg>
+            </div>
+          </div>
+          <div class="intro-photo-caption">
+            <span class="caption-dot" aria-hidden="true"></span>
+            Analiza ewidencji gruntów w czasie rzeczywistym
+          </div>
+        </div>
+        <div class="intro-text-col">
+          <span class="section-tag">Podejście</span>
+          <h2 class="section-headline">Trzy filary<br /><em>nowego modelu</em></h2>
+          <p class="intro-body">
+            Śniadecki Development łączy wieloletnie doświadczenie w akwizycji gruntów z możliwościami AI — budując platformę, która zmienia sposób, w jaki deweloperzy identyfikują, oceniają i zamykają transakcje.
+          </p>
+          <div class="intro-pillars">
+            <div class="pillar">
+              <span class="pillar-marker" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="#c9a96e" stroke-width="1"/><circle cx="6" cy="6" r="2" fill="#c9a96e"/></svg>
+              </span>
+              <div>
+                <span class="pillar-name">Sourcing gruntów</span>
+                <span class="pillar-sub">AI monitoruje rynek 24/7</span>
+              </div>
+            </div>
+            <div class="pillar">
+              <span class="pillar-marker" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="#c9a96e" stroke-width="1"/><circle cx="6" cy="6" r="2" fill="#c9a96e"/></svg>
+              </span>
+              <div>
+                <span class="pillar-name">Gotowe oferty</span>
+                <span class="pillar-sub">Pakiety inwestycyjne dla deweloperów</span>
+              </div>
+            </div>
+            <div class="pillar">
+              <span class="pillar-marker" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="#c9a96e" stroke-width="1"/><circle cx="6" cy="6" r="2" fill="#c9a96e"/></svg>
+              </span>
+              <div>
+                <span class="pillar-name">Ekosystem 360°</span>
+                <span class="pillar-sub">Sieć partnerów branżowych</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOURCING -->
+  <section class="feature-section" id="sourcing">
+    <div class="container">
+      <div class="feature-header">
+        <span class="section-tag">Filar 01</span>
+        <h2 class="section-headline">Sourcing<br /><em>gruntów</em></h2>
+        <p class="feature-desc">AI monitoruje rynek nieprzerwanie — wyławia okazje zanim zrobi to konkurencja.</p>
+      </div>
+      <div class="sourcing-layout">
+        <div class="sourcing-cards">
+          <article class="scard">
+            <div class="scard-num" aria-hidden="true">01</div>
+            <h3 class="scard-title">Radar rynku 24/7</h3>
+            <p class="scard-text">Automatyczny monitoring portali, ogłoszeń gmin i rejestrów publicznych. Alert gdy pojawi się grunt spełniający Twoje kryteria.</p>
+          </article>
+          <article class="scard scard-accent">
+            <div class="scard-num" aria-hidden="true">02</div>
+            <h3 class="scard-title">Analiza MPZP w 2 minuty</h3>
+            <p class="scard-text">Upload planu miejscowego → AI wyciąga wskaźniki zabudowy, linie, funkcję, ograniczenia. Scoring potencjału gotowy natychmiast.</p>
+          </article>
+          <article class="scard">
+            <div class="scard-num" aria-hidden="true">03</div>
+            <h3 class="scard-title">Scoring działek 0–100</h3>
+            <p class="scard-text">Każdy grunt oceniany automatycznie: lokalizacja, infrastruktura, chłonność, ryzyko prawne. Pipeline zawsze posortowany.</p>
+          </article>
+          <article class="scard">
+            <div class="scard-num" aria-hidden="true">04</div>
+            <h3 class="scard-title">Oferty nabycia na miarę</h3>
+            <p class="scard-text">AI przygotowuje propozycję zakupu dopasowaną do profilu właściciela. Mniej zimnych telefonów, więcej trafionych rozmów.</p>
+          </article>
+        </div>
+        <div class="sourcing-visual">
+          <div class="aerial-frame">
+            <img
+              src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80&fit=crop"
+              alt="Widok z drona na teren inwestycyjny"
+              loading="lazy"
+            />
+            <div class="aerial-geo" aria-hidden="true">
+              <svg viewBox="0 0 360 480" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="180" x2="360" y2="160" stroke="#c9a96e" stroke-width="1" stroke-dasharray="5 7" opacity="0.7"/>
+                <line x1="0" y1="300" x2="360" y2="320" stroke="#c9a96e" stroke-width="1" stroke-dasharray="5 7" opacity="0.6"/>
+                <line x1="140" y1="0" x2="120" y2="480" stroke="#c9a96e" stroke-width="1" stroke-dasharray="5 7" opacity="0.7"/>
+                <line x1="250" y1="0" x2="270" y2="480" stroke="#c9a96e" stroke-width="1" stroke-dasharray="5 7" opacity="0.5"/>
+                <circle cx="140" cy="180" r="5" fill="none" stroke="#c9a96e" stroke-width="1.5" opacity="0.9"/>
+                <circle cx="140" cy="180" r="2" fill="#c9a96e" opacity="1"/>
+                <circle cx="250" cy="160" r="4" fill="none" stroke="#c9a96e" stroke-width="1.2" opacity="0.8"/>
+                <circle cx="250" cy="160" r="1.5" fill="#c9a96e" opacity="0.9"/>
+                <circle cx="120" cy="320" r="4" fill="none" stroke="#c9a96e" stroke-width="1.2" opacity="0.7"/>
+                <text x="148" y="176" font-size="9" fill="#c9a96e" font-family="Inter,sans-serif" letter-spacing="0.08em" opacity="0.9">DZ. 88/2</text>
+                <text x="258" y="156" font-size="9" fill="#c9a96e" font-family="Inter,sans-serif" letter-spacing="0.08em" opacity="0.8">DZ. 88/3</text>
+                <!-- Ramka analizy -->
+                <rect x="20" y="20" width="140" height="90" rx="2" fill="rgba(14,14,12,0.75)" stroke="#c9a96e" stroke-width="0.8" opacity="0.9"/>
+                <text x="30" y="38" font-size="7" fill="#c9a96e" font-family="Inter,sans-serif" letter-spacing="0.12em" opacity="0.9">ANALIZA AI</text>
+                <line x1="30" y1="44" x2="148" y2="44" stroke="#c9a96e" stroke-width="0.5" opacity="0.5"/>
+                <text x="30" y="58" font-size="8" fill="#f4f2ed" font-family="Inter,sans-serif" opacity="0.8">Scoring: 84/100</text>
+                <text x="30" y="72" font-size="8" fill="#f4f2ed" font-family="Inter,sans-serif" opacity="0.8">Chłonność: MN/MW</text>
+                <text x="30" y="86" font-size="8" fill="#f4f2ed" font-family="Inter,sans-serif" opacity="0.8">Pow.: 4 820 m²</text>
+                <text x="30" y="100" font-size="8" fill="#c9a96e" font-family="Inter,sans-serif" opacity="0.9">▲ Rekomendacja: TAK</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OFERTY — ciemna sekcja z pełnoekranowym zdjęciem -->
+  <section class="oferty-section" id="oferty">
+    <div class="oferty-bg">
+      <img
+        src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1800&q=75&fit=crop"
+        alt="Widok lotniczy terenu inwestycyjnego"
+        loading="lazy"
+      />
+      <div class="oferty-bg-overlay"></div>
+      <!-- Geodezyjne linie na tle -->
+      <svg class="oferty-geo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <line x1="0" y1="35" x2="100" y2="30" stroke="#c9a96e" stroke-width="0.08" opacity="0.4"/>
+        <line x1="0" y1="65" x2="100" y2="70" stroke="#c9a96e" stroke-width="0.08" opacity="0.4"/>
+        <line x1="30" y1="0" x2="25" y2="100" stroke="#c9a96e" stroke-width="0.08" opacity="0.4"/>
+        <line x1="70" y1="0" x2="75" y2="100" stroke="#c9a96e" stroke-width="0.08" opacity="0.4"/>
+      </svg>
+    </div>
+    <div class="container oferty-content">
+      <span class="section-tag section-tag-light">Filar 02</span>
+      <h2 class="section-headline section-headline-light">Gotowe oferty<br /><em>dla deweloperów</em></h2>
+      <div class="formats-row">
+        <div class="fcard">
+          <span class="fcard-label">Format A</span>
+          <h3 class="fcard-title">JV</h3>
+          <p class="fcard-text">Grunt + know-how Śniadecki. Podział zysku z realizacji.</p>
+        </div>
+        <div class="fcard fcard-highlight">
+          <span class="fcard-label">Format B — najczęściej</span>
+          <h3 class="fcard-title">Sprzedaż z WZ</h3>
+          <p class="fcard-text">Działka z decyzją o warunkach zabudowy lub pozwoleniem. Gotowość do natychmiastowego startu.</p>
+        </div>
+        <div class="fcard">
+          <span class="fcard-label">Format C</span>
+          <h3 class="fcard-title">Pakiet inwestycyjny</h3>
+          <p class="fcard-text">Grunt + projekt + analiza rentowności. Minimum ryzyka dla kupującego.</p>
+        </div>
+      </div>
+      <div class="dataroom-strip">
+        <div class="dr-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a96e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="dr-text">
+          <strong>AI-powered data room</strong> — analiza chłonności, koncepcja podziału, koszty uzbrojenia, porównanie transakcji, mapa ryzyk. Gotowe w jeden dzień.
+        </div>
+        <a href="#kontakt" class="btn-primary btn-sm">Zamów pakiet</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- EKOSYSTEM -->
+  <section class="feature-section" id="ekosystem">
+    <div class="container">
+      <div class="eco-layout">
+        <div class="eco-text">
+          <span class="section-tag">Filar 03</span>
+          <h2 class="section-headline">Ekosystem<br /><em>360°</em></h2>
+          <p class="feature-desc">Śniadecki jako centrum branży — nie tylko uczestnik rynku, ale jego organizator.</p>
+          <div class="eco-nodes-list">
+            <div class="eco-node">
+              <span class="eco-dot" aria-hidden="true"></span>
+              <div>
+                <h4 class="eco-node-title">Pośrednicy i sourcerzy</h4>
+                <p class="eco-node-text">Sieć zewnętrznych partnerów prowizyjnych. AI standaryzuje i ocenia każdą ofertę automatycznie.</p>
+              </div>
+            </div>
+            <div class="eco-node">
+              <span class="eco-dot" aria-hidden="true"></span>
+              <div>
+                <h4 class="eco-node-title">Architekci i urbaniści</h4>
+                <p class="eco-node-text">Koncepcje zagospodarowania jako element pakietu inwestycyjnego.</p>
+              </div>
+            </div>
+            <div class="eco-node">
+              <span class="eco-dot" aria-hidden="true"></span>
+              <div>
+                <h4 class="eco-node-title">Inwestorzy i fundusze</h4>
+                <p class="eco-node-text">Baza z profilami preferencji. AI matchuje grunt z właściwym kupującym przed wejściem na rynek.</p>
+              </div>
+            </div>
+            <div class="eco-node">
+              <span class="eco-dot" aria-hidden="true"></span>
+              <div>
+                <h4 class="eco-node-title">Prawnicy i notariusze</h4>
+                <p class="eco-node-text">Sprawdzona sieć obsługi transakcji. Weryfikacja dokumentów zintegrowana w jeden przepływ.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="eco-photos">
+          <div class="eco-photo eco-photo-large">
+            <img
+              src="https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=700&q=80&fit=crop"
+              alt="Teren inwestycyjny z lotu ptaka"
+              loading="lazy"
+            />
+            <div class="eco-photo-geo" aria-hidden="true">
+              <svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="150" x2="300" y2="135" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="4 6" opacity="0.6"/>
+                <line x1="120" y1="0" x2="110" y2="400" stroke="#c9a96e" stroke-width="0.8" stroke-dasharray="4 6" opacity="0.6"/>
+                <circle cx="120" cy="150" r="4" fill="none" stroke="#c9a96e" stroke-width="1.2" opacity="0.9"/>
+                <circle cx="120" cy="150" r="1.5" fill="#c9a96e"/>
+              </svg>
+            </div>
+          </div>
+          <div class="eco-photo eco-photo-small">
+            <img
+              src="https://images.unsplash.com/photo-1486325212027-8081e485255e?w=500&q=80&fit=crop"
+              alt="Lotniczy widok na działki budowlane"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="roadmap-section">
+    <div class="container">
+      <div class="roadmap-header">
+        <span class="section-tag">Plan wdrożenia</span>
+        <h2 class="section-headline">Trzy etapy<br /><em>transformacji</em></h2>
+      </div>
+      <div class="roadmap-track">
+        <div class="roadmap-line" aria-hidden="true"></div>
+        <div class="rm-step">
+          <div class="rm-node" aria-hidden="true">
+            <span class="rm-circle">1</span>
+          </div>
+          <div class="rm-body">
+            <span class="rm-time">Teraz</span>
+            <h3 class="rm-title">Radar gruntów + analiza MPZP</h3>
+            <p class="rm-text">Najszybszy zwrot z inwestycji. Implementacja w 4–6 tygodni. Zespół przestaje tracić czas na manualny przegląd rynku.</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-node" aria-hidden="true">
+            <span class="rm-circle">2</span>
+          </div>
+          <div class="rm-body">
+            <span class="rm-time">3–6 miesięcy</span>
+            <h3 class="rm-title">Automatyczny data room i scoring</h3>
+            <p class="rm-text">Każda oferta wychodzi profesjonalnie sformatowana. Śniadecki staje się doradcą inwestycyjnym — nie tylko sprzedawcą działek.</p>
+          </div>
+        </div>
+        <div class="rm-step">
+          <div class="rm-node" aria-hidden="true">
+            <span class="rm-circle">3</span>
+          </div>
+          <div class="rm-body">
+            <span class="rm-time">6–18 miesięcy</span>
+            <h3 class="rm-title">Pełny ekosystem partnerów</h3>
+            <p class="rm-text">Sieć sourcerów, baza deweloperów, content hub. Śniadecki staje się hubem rynku gruntów Wielkopolski.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KONTAKT -->
+  <section class="contact-section" id="kontakt">
+    <div class="contact-photo">
+      <img
+        src="https://images.unsplash.com/photo-1444723121867-7a241cacace9?w=1600&q=75&fit=crop"
+        alt="Widok z drona na osiedle i tereny zielone"
+        loading="lazy"
+      />
+      <div class="contact-photo-overlay"></div>
+      <svg class="contact-geo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <line x1="0" y1="40" x2="100" y2="45" stroke="#c9a96e" stroke-width="0.1" opacity="0.45"/>
+        <line x1="40" y1="0" x2="35" y2="100" stroke="#c9a96e" stroke-width="0.1" opacity="0.45"/>
+        <circle cx="40" cy="40" r="1" fill="#c9a96e" opacity="0.6"/>
+      </svg>
+    </div>
+    <div class="container contact-content">
+      <div class="contact-grid">
+        <div class="contact-left">
+          <span class="section-tag section-tag-light">Kontakt</span>
+          <h2 class="contact-headline">Gotowi<br />na rozmowę?</h2>
+          <p class="contact-body">Opowiedz nam o gruntach, które szukasz lub chcesz sprzedać. Pokażemy jak platforma działa dla Twojego modelu.</p>
+          <div class="contact-details">
+            <a href="mailto:sprzedaz@sniadecki.pl" class="contact-link">sprzedaz@sniadecki.pl</a>
+            <address class="contact-address">pl. Władysława Andersa 5<br />61-894 Poznań</address>
+          </div>
+        </div>
+        <div class="contact-right">
+          <form class="contact-form" id="contact-form" novalidate>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="name" class="form-label">Imię i nazwisko</label>
+                <input type="text" id="name" name="name" class="form-input" placeholder="Jan Kowalski" autocomplete="name" required />
+              </div>
+              <div class="form-group">
+                <label for="email" class="form-label">E-mail</label>
+                <input type="email" id="email" name="email" class="form-input" placeholder="jan@firma.pl" autocomplete="email" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="topic" class="form-label">Temat</label>
+              <select id="topic" name="topic" class="form-input form-select">
+                <option value="">Wybierz…</option>
+                <option value="sourcing">Sourcing gruntów</option>
+                <option value="oferta">Gotowa oferta dla dewelopera</option>
+                <option value="jv">Współpraca JV</option>
+                <option value="ekosystem">Dołączenie do ekosystemu</option>
+                <option value="inne">Inne</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="message" class="form-label">Wiadomość</label>
+              <textarea id="message" name="message" class="form-input form-textarea" placeholder="Opisz krótko czego szukasz lub co oferujesz…" rows="4"></textarea>
+            </div>
+            <button type="submit" class="btn-submit">Wyślij wiadomość</button>
+            <p class="form-note">Odpowiadamy w ciągu jednego dnia roboczego.</p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <!-- PARTNER STRIP -->
+  <div class="partner-strip">
+    <div class="container partner-strip-inner">
+      <span class="partner-strip-label">Partner merytoryczny</span>
+      <a href="https://gruntowo.com" target="_blank" rel="noopener" class="partner-strip-logo">
+        <img src="gruntowo_transparent.png" alt="Gruntowo.com — Portal z gruntami" />
+      </a>
+      <span class="partner-strip-desc">Największa baza gruntów inwestycyjnych w Polsce</span>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <a href="#" class="footer-logo">
+          <span class="logo-s">Ś</span><span class="logo-rest">niadecki</span>
+        </a>
+        <p class="footer-tag">Development · Intelligence</p>
+        <p class="footer-copy">NIP 7831774771 · REGON 369753222</p>
+        <a href="https://gruntowo.com" target="_blank" rel="noopener" class="footer-partner-logo">
+          <img src="gruntowo_transparent.png" alt="Gruntowo.com" />
+          <span>Portal z gruntami</span>
+        </a>
+      </div>
+      <nav class="footer-nav" aria-label="Nawigacja stopki">
+        <ul>
+          <li><a href="#sourcing">Sourcing gruntów</a></li>
+          <li><a href="#oferty">Gotowe oferty</a></li>
+          <li><a href="#ekosystem">Ekosystem</a></li>
+          <li><a href="#kontakt">Kontakt</a></li>
+        </ul>
+      </nav>
+      <div class="footer-legal">
+        <p>© Śniadecki Development. Wszelkie prawa zastrzeżone.</p>
+        <a href="https://sniadecki-development.pl/upload/polityka_prywatnosci_sniadecki_development.pdf" target="_blank" rel="noopener">Polityka prywatności</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
