@@ -15,7 +15,7 @@
   //    Puste = uzywana jest tylko warstwa WMS cen z Geoportalu. Patrz INSTRUKCJA-CENY-BAZA.txt
   const CENY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQEZXE_tccUW0_ktbxwJW6C2RL1TLSAssbYaWSbNlWX2YTLeMzIIGVCMAD5pA9JwCKdmb-iZvN6A43X/pub?gid=0&single=true&output=csv';
 
-  // ⬇️ BACKEND SQL (opcjonalny). Jesli ustawiony, raport pyta backend zamiast CSV —
+  // ⬇️ BACKEND SQL (opcjonalny). Jesli ustawiony, raport pyta backend zamiast CSV -
   //    szybciej i skalowalnie. Jesli pusty albo backend nie odpowie, uzywa CSV jako zapasu.
   //    Przyklad: 'https://twoj-serwer-lh.pl/ceny'  albo  'http://localhost:5000/ceny' (test)
   const BACKEND_CENY_URL = 'https://sniadecki-development.pl/gruntowo-api/ceny.php';
@@ -29,6 +29,16 @@
   //   gruntowo:ceny     -> { zrodlo, rodzaj, liczba, mediana_m2, promien_m, rozszerzony, transakcje }
   //   gruntowo:wymiary  -> { dlugosc, szerokosc, obwod, boki }
   window.gruntowoRaport = window.gruntowoRaport || {};
+  // Przycisk "Umow konsultacje" w raporcie -> strona glowna z okienkiem konsultacji i numerem tej dzialki
+  function linkKonsultacji(id) {
+    if (!id) return;
+    document.querySelectorAll('[data-konsultacja]').forEach(function (a) {
+      a.href = 'index.html?konsultacja=1&dzialka=' + encodeURIComponent(id);
+    });
+  }
+  document.addEventListener('gruntowo:dzialka', function (e) { linkKonsultacji(e.detail && e.detail.id); });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { linkKonsultacji(new URLSearchParams(location.search).get('id')); });
+  else linkKonsultacji(new URLSearchParams(location.search).get('id'));
   function oglos(nazwa, dane) {
     try { document.dispatchEvent(new CustomEvent(nazwa, { detail: dane })); } catch (e) { /* stara przegladarka */ }
   }
@@ -41,13 +51,13 @@
     ov.classList.add('show');
 
     const kroki = [
-      'Pobieramy dane dzialki z rejestru GUGiK...',
-      'Wczytujemy ortofotomape i granice ewidencyjne...',
-      'Nakladamy plan zagospodarowania (MPZP)...',
+      'Pobieramy dane działki z rejestru GUGiK...',
+      'Wczytujemy ortofotomapę i granice ewidencyjne...',
+      'Nakładamy plan zagospodarowania (MPZP)...',
       'Sprawdzamy ceny transakcyjne w okolicy...',
       'Analizujemy uzbrojenie terenu i sieci...',
       'Sprawdzamy formy ochrony przyrody i zabytki...',
-      'Skladamy raport w calosc...'
+      'Składamy raport w całość...'
     ];
     let i = 0;
     const krokEl = $('loading-krok');
@@ -101,7 +111,7 @@
     window.scrollTo(0, 0);
   });
   // PDF = wydruk strony w jasnym ukladzie A4 (raport-druk.css) -> "Zapisz jako PDF".
-  // Nic nie jest pobierane ponownie — do PDF trafia to, co juz jest na stronie.
+  // Nic nie jest pobierane ponownie - do PDF trafia to, co juz jest na stronie.
   function drukujRaport() {
     const stary = document.title;
     const rozszerzony = !!document.getElementById('werdykt-gora');
@@ -130,7 +140,7 @@
     if (id) {
       input.value = id;
       if (ok === '1') {
-        // Dane juz zebrane i zapisane na stronie glownej — pomijamy walidacje e-maila
+        // Dane juz zebrane i zapisane na stronie glownej - pomijamy walidacje e-maila
         generuj(true);
       } else {
         const emailEl = $('r-email');
@@ -148,7 +158,7 @@
     const email = emailEl ? emailEl.value.trim() : '';
     const tel = telEl ? telEl.value.trim() : '';
 
-    // Walidacja e-maila (chyba ze dane juz zebrano na stronie glownej — pomijEmail=true)
+    // Walidacja e-maila (chyba ze dane juz zebrano na stronie glownej - pomijEmail=true)
     if (!pomijEmail && emailEl) {
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         emailEl.style.borderColor = '#b08d3e';
@@ -158,7 +168,7 @@
       emailEl.style.borderColor = '';
     }
 
-    // Zapis do Google Sheets — tylko gdy dane wpisano tutaj (nie gdy juz zapisano na stronie glownej)
+    // Zapis do Google Sheets - tylko gdy dane wpisano tutaj (nie gdy juz zapisano na stronie glownej)
     if (!pomijEmail && FORM_ENDPOINT && FORM_ENDPOINT !== 'WKLEJ_TUTAJ_LINK_APPS_SCRIPT' && email) {
       const dane = new FormData();
       dane.append('miejscowosc', '(raport z identyfikatora)');
@@ -167,6 +177,9 @@
       dane.append('telefon', tel);
       dane.append('data', new Date().toLocaleString('pl-PL'));
       fetch(FORM_ENDPOINT, { method: 'POST', body: dane }).catch(function () {});
+      // ...i do CRM
+      fetch('https://sniadecki-development.pl/gruntowo-api/zgloszenie.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zrodlo: 'raport_darmowy', email: email, telefon: tel, dzialka: id, strona: location.href }) }).catch(function () {});
     }
 
     start.style.display = 'none';
@@ -202,19 +215,19 @@
       })
       .catch(function (e) {
         console.warn('ULDK:', e);
-        $('rep-notice').innerHTML = '<strong>Nie udalo sie pobrac danych</strong> dla tego identyfikatora. Sprawdz format (TERYT_ARKUSZ.OBREB.NUMER) lub wskaz dzialke na mapie.';
+        $('rep-notice').innerHTML = '<strong>Nie udało się pobrać danych</strong> dla tego identyfikatora. Sprawdź format (TERYT_ARKUSZ.OBRĘB.NUMER) lub wskaż działkę na mapie.';
         trybDemo(id, true);
       });
   }
 
   function renderuj(id, data) {
-    const woj = data.voivodeship || '—', powiat = data.county || '—';
-    const gmina = data.commune || '—', obreb = data.region || '—';
+    const woj = data.voivodeship || '-', powiat = data.county || '-';
+    const gmina = data.commune || '-', obreb = data.region || '-';
     const nr = data.parcel || id.split('.').pop();
-    const area = data.powierzchnia ? Math.round(data.powierzchnia).toLocaleString('pl-PL') + ' m2' : '—';
+    const area = data.powierzchnia ? Math.round(data.powierzchnia).toLocaleString('pl-PL') + ' m²' : '-';
     const ha = data.powierzchnia ? (data.powierzchnia / 10000).toFixed(2) + ' ha' : '';
 
-    $('rep-title').textContent = 'Dzialka nr ' + nr;
+    $('rep-title').textContent = 'Działka nr ' + nr;
     $('rep-sub').textContent = (ha ? ha + ' · ' : '') + 'gm. ' + gmina + ', ' + powiat + ', woj. ' + woj;
     $('rep-area').textContent = area;
     $('rep-loc').textContent = woj;
@@ -230,7 +243,7 @@
       window._wycenaParam = { lat: c.lat, lon: c.lon, powierzchnia: data.powierzchnia };
       // Ustaw przelacznik typu wg wykrycia z ULDK (zabudowa: zabudowana/niezabudowana/nieznana)
       ustawTypPorownania(data.zabudowa);
-      // Domyslnie ZAWSZE zaczynamy od niezabudowanych (glowny przypadek analizy — grunt
+      // Domyslnie ZAWSZE zaczynamy od niezabudowanych (glowny przypadek analizy - grunt
       // pod inwestycje). Klient moze przelaczyc na zabudowane jednym klikiem, jesli trzeba.
       const rodzajStart = 'niezabudowana';
       pobierzCenyZBazy(c.lat, c.lon, data.powierzchnia, rodzajStart);
@@ -241,7 +254,7 @@
     }
     $('rep-notice').innerHTML = '<strong>Dane rzeczywiste</strong> z rejestru GUGiK (ULDK) dla ' + id + '.';
 
-    // Streszczenie na gorze — parametry
+    // Streszczenie na gorze - parametry
     if ($('pods-pow')) $('pods-pow').textContent = area;
     if ($('pods-lok')) $('pods-lok').textContent = 'gm. ' + gmina + ', ' + woj;
 
@@ -264,12 +277,12 @@
     // Domyslny wybor to zawsze niezabudowana (glowny przypadek analizy).
     const domyslny = 'niezabudowana';
     // Podpowiedz: jesli ULDK wykryl ZABUDOWANA, sugerujemy klientowi przelaczenie.
-    let hint = 'wybierz typ dzialki';
-    if (zabudowa === 'zabudowana') hint = 'ULDK wykryl zabudowe — mozesz przelaczyc';
-    else if (zabudowa === 'niezabudowana') hint = 'dzialka niezabudowana';
+    let hint = 'wybierz typ działki';
+    if (zabudowa === 'zabudowana') hint = 'ULDK wykrył zabudowę - możesz przełączyć';
+    else if (zabudowa === 'niezabudowana') hint = 'działka niezabudowana';
 
     box.innerHTML =
-      '<span class="typ-label">Porownuj z dzialkami:</span>' +
+      '<span class="typ-label">Porównuj z działkami:</span>' +
       '<button class="typ-btn' + (domyslny === 'niezabudowana' ? ' typ-aktywny' : '') + '" data-typ="niezabudowana">niezabudowanymi</button>' +
       '<button class="typ-btn' + (domyslny === 'zabudowana' ? ' typ-aktywny' : '') + '" data-typ="zabudowana">zabudowanymi</button>' +
       '<span class="typ-hint">' + hint + '</span>';
@@ -293,10 +306,10 @@
   function ustawSzacCeneBox(wartosc, opis, rodzaj) {
     const box = $('cena-szac-box');
     if (!box) return;
-    if ($('cena-szac-val')) $('cena-szac-val').textContent = wartosc.toLocaleString('pl-PL') + ' zl';
+    if ($('cena-szac-val')) $('cena-szac-val').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
     if ($('cena-szac-sub')) {
-      const typ = (rodzaj === 'zabudowana') ? 'dzialki zabudowane' : 'dzialki niezabudowane';
-      $('cena-szac-sub').textContent = opis + ' · porownanie: ' + typ;
+      const typ = (rodzaj === 'zabudowana') ? 'działki zabudowane' : 'działki niezabudowane';
+      $('cena-szac-sub').textContent = opis + ' · porównanie: ' + typ;
     }
     box.style.display = 'block';
     oglos('gruntowo:wycena', { wartosc: wartosc, opis: opis, rodzaj: rodzaj });
@@ -304,7 +317,7 @@
 
   function pobierzCenyZBazy(lat, lon, powierzchnia, rodzaj) {
     rodzaj = rodzaj || 'niezabudowana';
-    // NAJPIERW sprobuj backend SQL (jesli ustawiony) — szybszy i skalowalny.
+    // NAJPIERW sprobuj backend SQL (jesli ustawiony) - szybszy i skalowalny.
     if (BACKEND_CENY_URL && BACKEND_CENY_URL !== 'WKLEJ_TUTAJ_LINK_BACKENDU') {
       const url = BACKEND_CENY_URL + '?lon=' + lon + '&lat=' + lat + '&promien=1500&rodzaj=' + rodzaj;
       fetch(url)
@@ -341,10 +354,10 @@
           // Mediana prosto z backendu (juz policzona po stronie serwera)
           if (dane.mediana_cena_m2 && powierzchnia && $('pods-cena')) {
             const wartosc = Math.round(dane.mediana_cena_m2 * powierzchnia);
-            $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zl';
+            $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
             const promienKm = ((dane.promien_m || 1500) / 1000).toFixed(1).replace('.0', '');
             let opis = 'mediana ' + Math.round(dane.mediana_cena_m2).toLocaleString('pl-PL') +
-              ' zl/m2 z ' + dane.liczba_transakcji + ' transakcji w promieniu ' + promienKm + ' km';
+              ' zł/m² z ' + dane.liczba_transakcji + ' transakcji w promieniu ' + promienKm + ' km';
             if (dane.rozszerzony) opis += ' (poszerzony)';
             if ($('pods-cena-sub')) $('pods-cena-sub').textContent = opis;
             // Powtorz wartosc w sekcji cen (aktualizuje sie z suwakiem)
@@ -353,12 +366,12 @@
           rysujTransakcjeZBazy(bliskie.slice(0, 20));
         })
         .catch(function () {
-          // Backend nie zadzialal — sprobuj CSV jako zapas
+          // Backend nie zadzialal - sprobuj CSV jako zapas
           pobierzCenyZCSV(lat, lon, powierzchnia, rodzaj);
         });
       return;
     }
-    // Brak backendu — od razu CSV
+    // Brak backendu - od razu CSV
     pobierzCenyZCSV(lat, lon, powierzchnia, rodzaj);
   }
 
@@ -380,7 +393,7 @@
         const iId = nag.indexOf('id_dzialki');
         if (iLon < 0 || iLat < 0) return;
 
-        // Filtr rodzaju — TYLKO grunty (nie lokale, nie budynki).
+        // Filtr rodzaju - TYLKO grunty (nie lokale, nie budynki).
         // Suwak niezabudowane/zabudowane dziala tak samo jak w backendzie.
         const pasujeRodzaj = function (r) {
           const low = (r || '').toLowerCase();
@@ -433,10 +446,10 @@
           // Wartosc orientacyjna w streszczeniu
           if (powierzchnia && $('pods-cena')) {
             const wartosc = Math.round(mediana * powierzchnia);
-            $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zl';
+            $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
             if ($('pods-cena-sub')) {
               $('pods-cena-sub').textContent = 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') +
-                ' zl/m2 z ' + stawki.length + ' transakcji w promieniu 1,5 km';
+                ' zł/m² z ' + stawki.length + ' transakcji w promieniu 1,5 km';
             }
           }
         }
@@ -473,9 +486,9 @@
       const opis = (t.rodzaj || 'transakcja') + (t.mpzp ? ' · ' + t.mpzp : '') + ' · ' + odl;
       row.innerHTML =
         '<div class="tx-addr"><span class="tx-nr">' + nr + '.</span>' + opis + '<small>' + (t.id || '') + '</small></div>' +
-        '<div class="tx-price">' + (t.cena ? Math.round(t.cena).toLocaleString('pl-PL') + ' zl' : '—') + '</div>' +
-        '<div class="tx-perm2">' + (t.cenaM2 ? Math.round(t.cenaM2).toLocaleString('pl-PL') + ' zl/m2' : '—') + '</div>' +
-        '<div class="tx-date">' + (t.data || '—') + '</div>';
+        '<div class="tx-price">' + (t.cena ? Math.round(t.cena).toLocaleString('pl-PL') + ' zł' : '-') + '</div>' +
+        '<div class="tx-perm2">' + (t.cenaM2 ? Math.round(t.cenaM2).toLocaleString('pl-PL') + ' zł/m²' : '-') + '</div>' +
+        '<div class="tx-date">' + (t.data || '-') + '</div>';
       table.appendChild(row);
     });
 
@@ -485,11 +498,11 @@
     if (txs.length > WIDOCZNE) {
       const btn = document.createElement('button');
       btn.className = 'tx-wiecej';
-      btn.textContent = 'Pokaz wszystkie transakcje (' + txs.length + ')';
+      btn.textContent = 'Pokaż wszystkie transakcje (' + txs.length + ')';
       btn.addEventListener('click', function () {
-        // Przelacz klase 'tx-rozwiniete' na tabeli — CSS pokaze/ukryje wiersze
+        // Przelacz klase 'tx-rozwiniete' na tabeli - CSS pokaze/ukryje wiersze
         const rozwiniete = table.classList.toggle('tx-rozwiniete');
-        btn.textContent = rozwiniete ? 'Zwin liste' : 'Pokaz wszystkie transakcje (' + txs.length + ')';
+        btn.textContent = rozwiniete ? 'Zwiń listę' : 'Pokaż wszystkie transakcje (' + txs.length + ')';
       });
       table.parentElement.appendChild(btn);
     }
@@ -498,7 +511,7 @@
     naniesTransakcjeNaMape(txs);
   }
 
-  // Rysuje punkty transakcji na mapie cen — kolor wg ceny za m2 (tanie -> drogie)
+  // Rysuje punkty transakcji na mapie cen - kolor wg ceny za m2 (tanie -> drogie)
   function naniesTransakcjeNaMape(txs) {
     const img = document.getElementById('map-ceny');
     let bbox = window._cenyBbox, wh = window._cenyWH;
@@ -557,23 +570,23 @@
       const y = ((maxLat - t.lat) / szerLat) * wh.H;
       if (x < 0 || x > wh.W || y < 0 || y > wh.H) return;
       const nr = idx + 1;
-      // Kropka wieksza (r=10), z numerem w srodku — laczy mape z lista
+      // Kropka wieksza (r=10), z numerem w srodku - laczy mape z lista
       punkty += '<g>' +
         '<circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="10" fill="' + kolor(t.cenaM2) + '" stroke="#0b0c0a" stroke-width="1.5" opacity="0.95"/>' +
         '<text x="' + x.toFixed(0) + '" y="' + (y + 4).toFixed(0) + '" font-family="monospace" font-size="12" font-weight="700" fill="#0b0c0a" text-anchor="middle">' + nr + '</text>' +
         '</g>';
     });
 
-    // MARKER analizowanej dzialki — zloty pin ze srodka obszaru (tam jest dzialka)
+    // MARKER analizowanej dzialki - zloty pin ze srodka obszaru (tam jest dzialka)
     if (p && p.lon && p.lat) {
       const dx = ((p.lon - minLon) / szerLon) * wh.W;
       const dy = ((maxLat - p.lat) / szerLat) * wh.H;
       if (dx >= 0 && dx <= wh.W && dy >= 0 && dy <= wh.H) {
-        // Wyrazisty zloty marker z obwodka — wyroznia sie od kropek transakcji
+        // Wyrazisty zloty marker z obwodka - wyroznia sie od kropek transakcji
         punkty += '<g>' +
           '<circle cx="' + dx.toFixed(0) + '" cy="' + dy.toFixed(0) + '" r="16" fill="none" stroke="#c9a961" stroke-width="3" opacity="0.9"/>' +
           '<circle cx="' + dx.toFixed(0) + '" cy="' + dy.toFixed(0) + '" r="6" fill="#c9a961" stroke="#0b0c0a" stroke-width="2"/>' +
-          '<text x="' + dx.toFixed(0) + '" y="' + (dy - 24).toFixed(0) + '" font-family="monospace" font-size="13" font-weight="700" fill="#c9a961" text-anchor="middle" stroke="#0b0c0a" stroke-width="0.5">TWOJA DZIALKA</text>' +
+          '<text x="' + dx.toFixed(0) + '" y="' + (dy - 24).toFixed(0) + '" font-family="monospace" font-size="13" font-weight="700" fill="#c9a961" text-anchor="middle" stroke="#0b0c0a" stroke-width="0.5">TWOJA DZIAŁKA</text>' +
           '</g>';
       }
     }
@@ -608,10 +621,10 @@
     const mediana = stawki[Math.floor(stawki.length / 2)];
     const wartosc = Math.round(mediana * powierzchnia);
     if ($('pods-cena')) {
-      $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zl';
+      $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
     }
     if ($('pods-cena-sub')) {
-      $('pods-cena-sub').textContent = 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') + ' zl/m2 z ' + statTxt(stawki.length) + ' w okolicy';
+      $('pods-cena-sub').textContent = 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') + ' zł/m² z ' + statTxt(stawki.length) + ' w okolicy';
     }
   }
   function statTxt(n) { return n + ' transakcji'; }
@@ -636,7 +649,7 @@
           if ((wiersze[i][iGmina] || '').toLowerCase().trim() === gLow) { trafienie = wiersze[i]; break; }
         }
         if (!trafienie) {
-          box.innerHTML = '<div class="stat-empty">Brak danych dla gminy ' + gmina + ' w bazie statystyk. Uzupelnij plik na Google Drive, aby ta sekcja sie wypelnila.</div>';
+          box.innerHTML = '<div class="stat-empty">Brak danych dla gminy ' + gmina + ' w bazie statystyk. Uzupełnij plik na Google Drive, aby ta sekcja się wypełniła.</div>';
           $('sec-statystyki').style.display = 'block';
           return;
         }
@@ -662,20 +675,20 @@
   }
 
   function trybDemo(id, cichy) {
-    if (!cichy) $('rep-notice').innerHTML = '<strong>Tryb demonstracyjny.</strong> Posrednik do GUGiK nie jest podlaczony (patrz INSTRUKCJA-RAPORT.txt). Mapy ponizej sa rzeczywiste; dane opisowe pobiora sie po podlaczeniu.';
+    if (!cichy) $('rep-notice').innerHTML = '<strong>Tryb demonstracyjny.</strong> Pośrednik do GUGiK nie jest podłączony (patrz INSTRUKCJA-RAPORT.txt). Mapy poniżej są rzeczywiste; dane opisowe pobiorą się po podłączeniu.';
     const nr = id.split('.').pop();
-    $('rep-title').textContent = 'Dzialka nr ' + nr;
+    $('rep-title').textContent = 'Działka nr ' + nr;
     $('rep-sub').textContent = 'Identyfikator: ' + id;
-    $('rep-area').textContent = 'po podlaczeniu';
-    $('rep-coords').textContent = 'po podlaczeniu';
-    $('rep-loc').textContent = '—';
-    ['p-obreb','p-area','p-gmina','p-powiat','p-woj'].forEach(function (x) { $(x).textContent = 'po podlaczeniu'; });
+    $('rep-area').textContent = 'po podłączeniu';
+    $('rep-coords').textContent = 'po podłączeniu';
+    $('rep-loc').textContent = '-';
+    ['p-obreb','p-area','p-gmina','p-powiat','p-woj'].forEach(function (x) { $(x).textContent = 'po podłączeniu'; });
     rysujMapy([16.5298, 52.2221, 16.5330, 52.2235]);
   }
 
   function rysujMapy(bbox, wkt) {
     // Dopasuj proporcje obrazu do proporcji BBOX (inaczej mapa jest rozciagnieta/rozmazana).
-    // W EPSG:4326 1 stopien dlugosci jest krotszy niz szerokosci — korygujemy cos(lat).
+    // W EPSG:4326 1 stopien dlugosci jest krotszy niz szerokosci - korygujemy cos(lat).
     const mb = margines(bbox, 0.5);
     const s = mb.join(',');
     const mbCeny = marginesCeny(bbox);          // obszar ~1 km dla cen
@@ -688,20 +701,20 @@
     const ortoBase = function (bb, wh) {
       return 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&SRS=EPSG:4326&FORMAT=image/jpeg&TRANSPARENT=false&LAYERS=Raster&STYLES=&WIDTH=' + wh.W + '&HEIGHT=' + wh.H + '&BBOX=' + bb;
     };
-    // Ortofoto dla mapy cen (szeroki obszar 3 km) — piksele ograniczone do max 1024,
+    // Ortofoto dla mapy cen (szeroki obszar 3 km) - piksele ograniczone do max 1024,
     // bo StandardResolution odmawia przy szerokim kadrze + duzych pikselach.
-    // ortoBaseCeny — globalna (zdefiniowana nizej), wiec dostepna tez w naniesTransakcjeNaMape
+    // ortoBaseCeny - globalna (zdefiniowana nizej), wiec dostepna tez w naniesTransakcjeNaMape
 
-    // Kolejka map — ladowane z opoznieniem, zeby nie uderzac w Geoportal 8 zapytaniami naraz.
+    // Kolejka map - ladowane z opoznieniem, zeby nie uderzac w Geoportal 8 zapytaniami naraz.
     const kolejka = [];
 
-    // MAPA 0: Zaznaczenie dzialki — ciasny widok z ZLOTYM OBRYSEM dzialki (z geometrii ULDK)
+    // MAPA 0: Zaznaczenie dzialki - ciasny widok z ZLOTYM OBRYSEM dzialki (z geometrii ULDK)
     const mbZazn = margines(bbox, 0.6), sZazn = mbZazn.join(','), zazn = wymiary(mbZazn);
-    // Mapy z samym ortofoto — od razu, poza kolejka (kafelki WMTS sa szybkie)
+    // Mapy z samym ortofoto - od razu, poza kolejka (kafelki WMTS sa szybkie)
     setMapa('map-zaznaczenie', ortoBase(sZazn, zazn));
     rysujObrys('map-zaznaczenie', wkt, mbZazn, zazn, true);
 
-    // MAPA 1: Ortofotomapa + ZLOTY OBRYS dzialki — szerszy widok (okolica)
+    // MAPA 1: Ortofotomapa + ZLOTY OBRYS dzialki - szerszy widok (okolica)
     // Szerszy kadr liczony w METRACH: min. 300 m od srodka dzialki (albo 3x jej rozmiar dla duzych
     // dzialek). Wczesniej margines byl proporcjonalny do dzialki i dla malych dzialek
     // sekcja 01 wygladala prawie tak samo jak sekcja 00.
@@ -712,7 +725,7 @@
     rysujObrys('map-orto', wkt, mbOkolica, ortoOkolica);
 
     // MAPA: PLAN OGOLNY GMINY (POG). Nazwy warstw w camelCase (wg GetCapabilities),
-    // usluga natywnie w EPSG:2180 (jak KIUT) — konwertujemy bbox.
+    // usluga natywnie w EPSG:2180 (jak KIUT) - konwertujemy bbox.
     const mbPog = margines(bbox, 0.3), pogWH = wymiary(mbPog);
     const pp1 = wgs84Do2180(mbPog[0], mbPog[1]);
     const pp2 = wgs84Do2180(mbPog[2], mbPog[3]);
@@ -728,7 +741,7 @@
       pobierzLegendePOG(bbox, pogWH);
     });
 
-    // MAPA 2: MPZP — poprawne warstwy tresci planu (raster + wektor + granice).
+    // MAPA 2: MPZP - poprawne warstwy tresci planu (raster + wektor + granice).
     // Warstwy MPZP renderuja sie tylko przy duzym przyblizeniu (skala < 1:10000),
     // dlatego uzywamy ciasnego widoku dzialki (margines 0.3), nie szerokiego.
     const mbMpzp = margines(bbox, 0.3), sMpzp = mbMpzp.join(','), mpzpWH = wymiary(mbMpzp);
@@ -740,17 +753,17 @@
       pobierzLegendeMPZP(bbox, mpzpWH, wkt);
     });
 
-    // MAPA 3: Ceny — ortofoto jako podklad + WLASNE punkty transakcji (kolorowane).
-    // Obszar szeroki (3 km), wiec ograniczamy piksele — StandardResolution odmawia
+    // MAPA 3: Ceny - ortofoto jako podklad + WLASNE punkty transakcji (kolorowane).
+    // Obszar szeroki (3 km), wiec ograniczamy piksele - StandardResolution odmawia
     // przy szerokim kadrze + duzych pikselach. Max 1024px po dluzszym boku.
     window._cenyBbox = mbCeny;
     window._cenyWH = ortoC;
     const cenyOrtoUrl = ortoBaseCeny(sCeny, ortoC);
     setMapa('map-ceny', cenyOrtoUrl);
 
-    // MAPA 6: Uzbrojenie terenu (KIUT — poprawne nazwy warstw wg specyfikacji GUGiK).
+    // MAPA 6: Uzbrojenie terenu (KIUT - poprawne nazwy warstw wg specyfikacji GUGiK).
     // Sieci widoczne w skali ~1:5000-1:10000, wiec uzywamy sredniego widoku (nie 1 km).
-    // KIUT (uzbrojenie) wymaga ukladu EPSG:2180 (metry PUWG 1992), nie 4326 (stopnie) —
+    // KIUT (uzbrojenie) wymaga ukladu EPSG:2180 (metry PUWG 1992), nie 4326 (stopnie) -
     // sprawdzone: w 4326 zwraca pusty obraz, w 2180 pokazuje sieci. Konwertujemy bbox.
     const mbUzbr = margines(bbox, 0.2), uzbrWH = wymiary(mbUzbr);
     // Przelicz naroza bbox z lon/lat na EPSG:2180
@@ -761,7 +774,7 @@
                      Math.max(p1.x, p2.x) + ',' + Math.max(p1.y, p2.y);
     const uzbrojenieUrl = 'https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaUzbrojeniaTerenu?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&SRS=EPSG:2180&FORMAT=image/png&TRANSPARENT=true&LAYERS=przewod_wodociagowy,przewod_kanalizacyjny,przewod_gazowy,przewod_elektroenergetyczny,przewod_cieplowniczy,przewod_telekomunikacyjny&STYLES=,,,,,&WIDTH=' + uzbrWH.W + '&HEIGHT=' + uzbrWH.H + '&BBOX=' + bbox2180;
     // KIUT rysuje przewody tylko przy duzym przyblizeniu (ok. <= 0,35 m/piksel). Dla wiekszych dzialek
-    // jeden obraz 1200 px bylby zbyt "oddalony" i pusty — wtedy skladamy warstwe z kafelkow.
+    // jeden obraz 1200 px bylby zbyt "oddalony" i pusty - wtedy skladamy warstwe z kafelkow.
     const uzbrBox = [Math.min(p1.x, p2.x), Math.min(p1.y, p2.y), Math.max(p1.x, p2.x), Math.max(p1.y, p2.y)];
     ustawTloMapy('map-energia', ortoBase(mbUzbr.join(','), uzbrWH));
     kolejka.push(function (gotowe) {
@@ -772,17 +785,17 @@
       rysujObrys('map-energia', wkt, mbUzbr, uzbrWH);
     });
 
-    // (Formy ochrony przyrody, zabytki i tereny zalewowe przeniesione do raportu platnego —
+    // (Formy ochrony przyrody, zabytki i tereny zalewowe przeniesione do raportu platnego -
     //  dzialaly niepewnie na roznych serwerach i spowalnialy darmowy raport.)
 
-    // ZDJECIA HISTORYCZNE — porownanie ortofotomap z roznych lat (osobna sekcja, poza kolejka WMS)
+    // ZDJECIA HISTORYCZNE - porownanie ortofotomap z roznych lat (osobna sekcja, poza kolejka WMS)
     rysujZdjeciaHistoryczne(bbox);
 
-    // MENEDZER KOLEJKI — laduje mapy z ograniczeniem liczby JEDNOCZESNYCH zapytan.
+    // MENEDZER KOLEJKI - laduje mapy z ograniczeniem liczby JEDNOCZESNYCH zapytan.
     // Zamiast odpalac wszystkie naraz (co zasypuje Geoportal i powoduje bledy),
     // trzymamy max 2 aktywne; nastepna startuje gdy poprzednia skonczy (sukces lub porazka).
     // To zgodne z dobra praktyka: concurrency limit + kolejka FIFO.
-    // W kolejce zostaly juz tylko 3 warstwy z wolnych serwerow (POG, MPZP, sieci) — mozna je puscic razem
+    // W kolejce zostaly juz tylko 3 warstwy z wolnych serwerow (POG, MPZP, sieci) - mozna je puscic razem
     uruchomKolejkeMap(kolejka, 3);
 
     // Ukryj poczekalnie gdy kluczowe mapy (zaznaczenie + ortofoto) sie zaladuja.
@@ -808,7 +821,7 @@
   }
 
   // Warstwa sieci KIUT dla mapy 07: zwykly adres, gdy skala wystarcza; mozaika z kafelkow, gdy dzialka duza.
-  // Zwraca adres obrazu (zwykly URL albo blob: z polaczonych kafelkow). Przy bledzie — zwykly URL.
+  // Zwraca adres obrazu (zwykly URL albo blob: z polaczonych kafelkow). Przy bledzie - zwykly URL.
   function warstwaKIUT(bb, wh, zwyklyUrl) {
     const MPP_MAX = 0.3;
     const mpp = Math.max((bb[2] - bb[0]) / wh.W, (bb[3] - bb[1]) / wh.H);
@@ -846,12 +859,12 @@
     const wh = wymiary(mb);
     const s = mb.join(',');
 
-    // Roczniki do sprawdzenia. Dostepnosc rozni sie per teren — zdjecia bez danych
+    // Roczniki do sprawdzenia. Dostepnosc rozni sie per teren - zdjecia bez danych
     // pokaza komunikat. Format TIME: pelna data ISO (rok-01-01/rok-12-31).
     const lata = ['2010', '2015', '2019', '2023'];
     let html = '';
     lata.forEach(function (rok) {
-      // StandardResolutionTime — usluga archiwalna z obsluga czasu.
+      // StandardResolutionTime - usluga archiwalna z obsluga czasu.
       // TIME jako zakres calego roku: RRRR-01-01/RRRR-12-31
       const url = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolutionTime'
         + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&SRS=EPSG:4326&FORMAT=image/jpeg'
@@ -862,7 +875,7 @@
         '<div class="zdj-rok">' + rok + '</div>' +
         '<div class="zdj-mapbox"><img data-rok="' + rok + '" src="' + url + '" alt="Ortofotomapa ' + rok + '" ' +
         'onload="this.dataset.ok=1" ' +
-        'onerror="var p=this.parentElement; if(!this.dataset.r){this.dataset.r=1; var self=this; setTimeout(function(){self.src=self.src+\'&_r=\'+Date.now();},1500);} else {p.innerHTML=\'<div class=zdj-brak>Brak zdjecia z \' + ' + rok + ' + \' dla tego terenu</div>\';}" /></div>' +
+        'onerror="var p=this.parentElement; if(!this.dataset.r){this.dataset.r=1; var self=this; setTimeout(function(){self.src=self.src+\'&_r=\'+Date.now();},1500);} else {p.innerHTML=\'<div class=zdj-brak>Brak zdjęcia z \' + ' + rok + ' + \' dla tego terenu</div>\';}" /></div>' +
         '</div>';
     });
     kontener.innerHTML = html;
@@ -873,9 +886,9 @@
   // ===== ORTOFOTO Z KAFELKOW WMTS (szybkie) =====
   // GUGiK udostepnia ortofotomape takze jako GOTOWE, zapisane kafelki (WMTS). Sa podawane w ~0,2 s,
   // podczas gdy WMS rysuje kazdy obrazek od zera (sekundy, czesto blad 404 pod obciazeniem).
-  // Skladamy potrzebny kadr z kafelkow na plotnie. Gdy sie nie uda — zostaje dotychczasowy WMS.
-  // Zestaw kafelkow EPSG:3857 (Web Mercator, kafelek 256 px) — zgodny co do metra z WMS.
-  // (Zestaw EPSG:4326 z tej uslugi jest przesuniety o ok. 20 m — nie uzywamy go.)
+  // Skladamy potrzebny kadr z kafelkow na plotnie. Gdy sie nie uda - zostaje dotychczasowy WMS.
+  // Zestaw kafelkow EPSG:3857 (Web Mercator, kafelek 256 px) - zgodny co do metra z WMS.
+  // (Zestaw EPSG:4326 z tej uslugi jest przesuniety o ok. 20 m - nie uzywamy go.)
   const WMTS_ORTO = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution';
   const WMTS_O = 20037508.342787;                    // pol obwodu w metrach Mercatora
   const WMTS_ZMAX = 19;
@@ -883,7 +896,7 @@
   function merc(lon, lat) {
     return [lon * 20037508.342789244 / 180, Math.log(Math.tan((90 + lat) * Math.PI / 360)) * 6378137];
   }
-  const wmtsPamiec = {};                             // ten sam kafelek w kilku mapach — pobierany raz
+  const wmtsPamiec = {};                             // ten sam kafelek w kilku mapach - pobierany raz
 
   // Wszystkie kafelki ze wszystkich map ida przez jedna kolejke: max 8 naraz (serwer GUGiK przy
   // kilkudziesieciu rownoczesnych zapytaniach zaczyna odrzucac czesc z nich).
@@ -914,11 +927,12 @@
         return r.blob();
       }).then(createImageBitmap, function (e) { clearTimeout(t); throw e; });
     };
-    // 3 proby: od razu, po 0,7 s, po 2 s
+    // 5 prob: od razu, po 0,7 s, 2 s, 4 s, 7 s (GUGiK czasem zwraca chwilowe bledy 500 dla czesci kafelkow)
+    const przerwy = [700, 2000, 4000, 7000];
     const proba = function (n) {
       return wmtsSlot(jeden).catch(function (e) {
-        if (n >= 2) throw e;
-        return new Promise(function (ok) { setTimeout(ok, n ? 2000 : 700); }).then(function () { return proba(n + 1); });
+        if (n >= przerwy.length) throw e;
+        return new Promise(function (ok) { setTimeout(ok, przerwy[n]); }).then(function () { return proba(n + 1); });
       });
     };
     wmtsPamiec[url] = proba(0).catch(function (e) { delete wmtsPamiec[url]; throw e; });
@@ -934,9 +948,9 @@
 
   // Kadr bb=[minLon,minLat,maxLon,maxLat] w rozmiarze W x H -> adres obrazu (blob:)
   function ortoWMTS(bb, W, H) {
-    if (!window.createImageBitmap || !window.fetch) return Promise.reject(new Error('stara przegladarka'));
+    if (!window.createImageBitmap || !window.fetch) return Promise.reject(new Error('stara przeglądarka'));
     const a = merc(bb[0], bb[1]), b = merc(bb[2], bb[3]);   // lewy dolny, prawy gorny (m Mercatora)
-    if (!(b[0] > a[0] && b[1] > a[1])) return Promise.reject(new Error('zly kadr'));
+    if (!(b[0] > a[0] && b[1] > a[1])) return Promise.reject(new Error('zły kadr'));
     const potrzebne = Math.min((b[0] - a[0]) / W, (b[1] - a[1]) / H);   // m Mercatora na piksel
     let z = WMTS_ZMAX;
     for (let k = 10; k <= WMTS_ZMAX; k++) { if (wmtsRes(k) <= potrzebne * 1.25) { z = k; break; } }
@@ -946,13 +960,13 @@
       c0 = Math.floor((a[0] + WMTS_O) / kaf); c1 = Math.floor((b[0] + WMTS_O) / kaf);
       r0 = Math.floor((WMTS_O - b[1]) / kaf); r1 = Math.floor((WMTS_O - a[1]) / kaf);
       if ((c1 - c0 + 1) * (r1 - r0 + 1) <= 100 || z <= 10) break;
-      z--;                                            // za duzo kafelkow — o poziom mniej szczegolow
+      z--;                                            // za duzo kafelkow - o poziom mniej szczegolow
     }
     const nc = c1 - c0 + 1, nr = r1 - r0 + 1;
     const duze = document.createElement('canvas');
     duze.width = nc * 256; duze.height = nr * 256;
     const dctx = duze.getContext('2d');
-    dctx.fillStyle = '#2a2f2c'; dctx.fillRect(0, 0, duze.width, duze.height);
+    // (brakujace kafelki zostaja przezroczyste - pod spod podkladamy obraz WMS, patrz nizej)
     const zadania = [];
     for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) zadania.push({ r: r, c: c });
     let bledy = 0;
@@ -962,19 +976,35 @@
         return kafelekZastepczy(z, k.r, k.c, dctx, x, y).catch(function () { bledy++; });
       });
     })).then(function () {
-      if (bledy > zadania.length * 0.3) throw new Error('za duzo brakujacych kafelkow');
+      if (bledy > zadania.length * 0.3) throw new Error('za dużo brakujących kafelków');
       const lewo = -WMTS_O + c0 * kaf, gora = WMTS_O - r0 * kaf;
       const wyj = document.createElement('canvas'); wyj.width = W; wyj.height = H;
       const wctx = wyj.getContext('2d');
+      wctx.fillStyle = '#2a2f2c'; wctx.fillRect(0, 0, W, H);
       wctx.imageSmoothingQuality = 'high';
-      wctx.drawImage(duze, (a[0] - lewo) / res, (gora - b[1]) / res,
-        (b[0] - a[0]) / res, (b[1] - a[1]) / res, 0, 0, W, H);
-      return new Promise(function (ok, nie) {
-        wyj.toBlob(function (bl) { if (bl) ok(URL.createObjectURL(bl)); else nie(new Error('toBlob')); }, 'image/jpeg', 0.9);
+      // Gdy czesc kafelkow nie przyszla - pod mozaike podkladamy jeden obraz z WMS (ten sam kadr),
+      // zeby zamiast szarych kwadratow bylo zdjecie.
+      const podklad = bledy ? pobierzPodkladWMS(bb, W, H) : Promise.resolve(null);
+      return podklad.then(function (bmp) {
+        if (bmp) wctx.drawImage(bmp, 0, 0, W, H);
+        wctx.drawImage(duze, (a[0] - lewo) / res, (gora - b[1]) / res, (b[0] - a[0]) / res, (b[1] - a[1]) / res, 0, 0, W, H);
+        return new Promise(function (ok, nie) {
+          wyj.toBlob(function (bl) { if (bl) ok(URL.createObjectURL(bl)); else nie(new Error('toBlob')); }, 'image/jpeg', 0.9);
+        });
       });
     });
   }
-  // Z adresu WMS ortofoto (BBOX, WIDTH, HEIGHT) — kafelki WMTS; przy bledzie null
+  // Jeden obraz ortofoto z WMS dla kadru (EPSG:4326) - do zalatania brakujacych kafelkow; przy bledzie null
+  function pobierzPodkladWMS(bb, W, H) {
+    const s = Math.min(1, 1600 / Math.max(W, H));
+    const url = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1'
+      + '&LAYERS=Raster&STYLES=&SRS=EPSG:4326&FORMAT=image/jpeg&WIDTH=' + Math.round(W * s) + '&HEIGHT=' + Math.round(H * s) + '&BBOX=' + bb.join(',');
+    return fetchZPonowieniem(url, 2).then(function (r) {
+      if ((r.headers.get('content-type') || '').indexOf('image') === -1) throw new Error('nie obraz');
+      return r.blob();
+    }).then(createImageBitmap).catch(function () { return null; });
+  }
+  // Z adresu WMS ortofoto (BBOX, WIDTH, HEIGHT) - kafelki WMTS; przy bledzie null
   function ortoZWMS(url) {
     if (url.indexOf('/ORTO/WMS/') === -1) return Promise.resolve(null);
     const b = url.match(/BBOX=([^&]+)/), w = url.match(/WIDTH=(\d+)/), h = url.match(/HEIGHT=(\d+)/);
@@ -984,7 +1014,7 @@
 
   // Oblicz wymiary obrazu (W x H) dopasowane do proporcji BBOX w danej szerokosci.
   // Utrzymuje ~1200px po dluzszym boku dla ostrosci.
-  // Ortofoto dla mapy cen — piksele ograniczone do max 1024 (szeroki obszar).
+  // Ortofoto dla mapy cen - piksele ograniczone do max 1024 (szeroki obszar).
   function ortoBaseCeny(bb, wh) {
     let W = wh.W, H = wh.H;
     const max = 1024;
@@ -1037,7 +1067,7 @@
   }
 
   // Laduje obraz z listy zrodel: kazde probuje 2x, potem przechodzi do nastepnego.
-  // Exponential backoff z jitterem miedzy probami (nie stały odstep — inaczej wszystkie
+  // Exponential backoff z jitterem miedzy probami (nie stały odstep - inaczej wszystkie
   // retry uderzaja naraz, "thundering herd"). onDone wywolywane ZAWSZE na koncu
   // (sukces lub porazka), zeby menedzer kolejki zwolnil slot.
   function ladujZFallbackiem(img, zrodla, opts) {
@@ -1058,7 +1088,7 @@
       if (zi >= zrodla.length) {
         // Wszystkie zrodla wyczerpane
         if (opts.onFail) opts.onFail(img);
-        else { img.style.opacity = '0.3'; img.alt = 'Podklad chwilowo niedostepny'; }
+        else { img.style.opacity = '0.3'; img.alt = 'Podkład chwilowo niedostępny'; }
         zakoncz();
         return;
       }
@@ -1098,16 +1128,16 @@
     const bboxM = url.match(/BBOX=([^&]+)/);
     const wM = url.match(/WIDTH=(\d+)/), hM = url.match(/HEIGHT=(\d+)/);
     if (bboxM && wM && hM) {
-      // Ortofoto — uzyj fallbacku na kilka zrodel GUGiK
+      // Ortofoto - uzyj fallbacku na kilka zrodel GUGiK
       ladujZFallbackiem(img, ortoZrodla(bboxM[1], wM[1], hM[1]), { onDone: gotowe });
     } else {
-      // Nie-ortofoto (np. warstwa) — proste ponawianie jednego url z backoffem
+      // Nie-ortofoto (np. warstwa) - proste ponawianie jednego url z backoffem
       let proba = 0;
       let done = false;
       const zakoncz = function () { if (!done) { done = true; if (gotowe) gotowe(); } };
       img.onerror = function () {
         if (proba < 2) { proba++; const self = this; setTimeout(function () { self.src = url + '&_r=' + Date.now(); }, 800 * Math.pow(2, proba) + Math.random() * 400); }
-        else { this.style.opacity = '0.3'; this.alt = 'Podklad chwilowo niedostepny'; zakoncz(); }
+        else { this.style.opacity = '0.3'; this.alt = 'Podkład chwilowo niedostępny'; zakoncz(); }
       };
       img.onload = function () { this.style.opacity = '1'; zakoncz(); };
       img.src = url;
@@ -1115,7 +1145,7 @@
   }
 
   // Mapa z warstwa nalozona: ortofoto (tlo, z fallbackiem) + warstwa przezroczysta na wierzchu.
-  // gotowe() wywolywane gdy warstwa skonczy — zwalnia slot w kolejce.
+  // gotowe() wywolywane gdy warstwa skonczy - zwalnia slot w kolejce.
   function setMapaOverlay(id, bazaUrl, warstwaUrl, gotowe) {
     const img = $(id);
     if (!img) { if (gotowe) gotowe(); return; }
@@ -1137,7 +1167,7 @@
     img.src = warstwaUrl;
   }
 
-  // Tlo mapy (ortofoto) — mozna je uruchomic od razu, zanim warstwa doczeka sie w kolejce.
+  // Tlo mapy (ortofoto) - mozna je uruchomic od razu, zanim warstwa doczeka sie w kolejce.
   // Drugie wywolanie z tym samym adresem nic nie robi.
   function ustawTloMapy(id, bazaUrl) {
     const img = $(id);
@@ -1151,7 +1181,7 @@
     });
   }
   function tloZWMS(box, bazaUrl, ustaw) {
-    // Ortofoto jako tlo — z fallbackiem na kilka zrodel GUGiK (w tle, nie blokuje).
+    // Ortofoto jako tlo - z fallbackiem na kilka zrodel GUGiK (w tle, nie blokuje).
     const bboxM = bazaUrl.match(/BBOX=([^&]+)/);
     const wM = bazaUrl.match(/WIDTH=(\d+)/), hM = bazaUrl.match(/HEIGHT=(\d+)/);
     if (bboxM && wM && hM) {
@@ -1168,9 +1198,9 @@
     }
   }
 
-  // MENEDZER KOLEJKI MAP — laduje z ograniczeniem liczby jednoczesnych zapytan.
+  // MENEDZER KOLEJKI MAP - laduje z ograniczeniem liczby jednoczesnych zapytan.
   // zadania: tablica funkcji postaci function(gotowe){...}. Kazda MOZE wywolac gotowe();
-  // jesli nie zdazy w 4s, slot i tak sie zwalnia (bezpiecznik) — kolejka NIGDY sie nie zacina.
+  // jesli nie zdazy w 4s, slot i tak sie zwalnia (bezpiecznik) - kolejka NIGDY sie nie zacina.
   function uruchomKolejkeMap(zadania, limit) {
     limit = limit || 3;
     let i = 0, aktywne = 0;
@@ -1185,7 +1215,7 @@
           nastepne();
         };
         // Bezpiecznik: zwolnij slot po 4s niezaleznie od tego, czy mapa skonczyla.
-        // Warstwa moze dogrywac sie w tle — nie blokujemy kolejki na wolnych serwerach.
+        // Warstwa moze dogrywac sie w tle - nie blokujemy kolejki na wolnych serwerach.
         setTimeout(gotowe, 4000);
         try { fn(gotowe); } catch (e) { gotowe(); }
       }
@@ -1201,16 +1231,16 @@
       const row = document.createElement('div');
       row.className = 'tx-row';
       row.innerHTML =
-        '<div class="tx-addr">' + (t.adres || '—') + '<small>' + (t.id || '') + '</small></div>' +
-        '<div class="tx-price">' + (t.cena ? Number(t.cena).toLocaleString('pl-PL') + ' zl' : '—') + '</div>' +
-        '<div class="tx-perm2">' + (t.cenaM2 || '—') + '</div>' +
-        '<div class="tx-date">' + (t.data || '—') + '</div>';
+        '<div class="tx-addr">' + (t.adres || '-') + '<small>' + (t.id || '') + '</small></div>' +
+        '<div class="tx-price">' + (t.cena ? Number(t.cena).toLocaleString('pl-PL') + ' zł' : '-') + '</div>' +
+        '<div class="tx-perm2">' + (t.cenaM2 || '-') + '</div>' +
+        '<div class="tx-date">' + (t.data || '-') + '</div>';
       table.appendChild(row);
     });
   }
 
-  // ===== REJESTR URBANISTYCZNY (RU) — oficjalny rejestr planow od 1.07.2026 =====
-  // Uslugi WMS maja CORS (odczyt wprost ze strony); szczegoly aktu (uchwala, PDF) — przez nasz serwer (plan-info.php).
+  // ===== REJESTR URBANISTYCZNY (RU) - oficjalny rejestr planow od 1.07.2026 =====
+  // Uslugi WMS maja CORS (odczyt wprost ze strony); szczegoly aktu (uchwala, PDF) - przez nasz serwer (plan-info.php).
   const URL_RU = 'https://rejestr-urbanistyczny.gov.pl/uslugi-sieciowe/';
   const URL_PLAN_INFO = 'https://sniadecki-development.pl/gruntowo-api/plan-info.php';
   const RU_STREFY = ['SW', 'SJ', 'SZ', 'SU', 'SH', 'SP', 'SR', 'SI', 'SN', 'SC', 'SG', 'SO', 'SK'];
@@ -1237,7 +1267,7 @@
     return (v === '-' || v === 'null') ? '' : v;
   }
   function ruIdAktu(link) { const m = String(link || '').match(/details\/(?:mpzp|pog)\/(\d+)/); return m ? m[1] : ''; }
-  // RU podaje tytuly WIELKIMI LITERAMI — zamieniamy na zdanie, z wielka litera nazwy po "gminy"/"miasta"
+  // RU podaje tytuly WIELKIMI LITERAMI - zamieniamy na zdanie, z wielka litera nazwy po "gminy"/"miasta"
   function ruMalymi(t) {
     t = String(t || '').toLowerCase();
     t = t.replace(/\b(gminy|miasta|miasto|gmina|wsi|ulicy|ul\.|os\.|osiedla)\s+(i\s+gminy\s+)?([a-ząćęłńóśźż])/g, function (m, a, b, c) { return a + ' ' + (b || '') + c.toUpperCase(); });
@@ -1272,7 +1302,7 @@
       const projekt = obj.filter(function (o) { return /^APP\.POG\.(WTrakcie|WOpracowaniu)/.test(o.warstwa); })[0];
       if (!app && !strefa) {
         if (projekt) { pogLegendaRU({ status: 'brak', zrodlo: 'ru', projekt: { tytul: ruPole(projekt.p, /^Tytu/), status: ruPole(projekt.p, /^Status/), link: ruPole(projekt.p, /^Link/) } }); return; }
-        pobierzLegendePOGstara(bbox, wh); return;      // RU nic nie ma — pytamy stara usluge
+        pobierzLegendePOGstara(bbox, wh); return;      // RU nic nie ma - pytamy stara usluge
       }
       const w = { status: 'jest', zrodlo: 'ru', kod: '', ouz: false, ozs: false };
       if (strefa) {
@@ -1303,9 +1333,9 @@
     window.gruntowoRaport.pog = wynik;
     oglos('gruntowo:pog', wynik);
     if (wynik.status !== 'jest') {
-      znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego — zweryfikować w gminie', 'brak');
+      znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego - zweryfikować w gminie', 'brak');
       if (box && wynik.projekt) {
-        box.innerHTML = '<div class="legenda-note"><strong>Plan ogólny gminy jest w przygotowaniu</strong> (' + escH(ruMalymi(wynik.projekt.status)) + ') — ' + escH(ruMalymi(wynik.projekt.tytul)) + '.' +
+        box.innerHTML = '<div class="legenda-note"><strong>Plan ogólny gminy jest w przygotowaniu</strong> (' + escH(ruMalymi(wynik.projekt.status)) + ') - ' + escH(ruMalymi(wynik.projekt.tytul)) + '.' +
           (wynik.projekt.link ? ' <a href="' + escH(wynik.projekt.link) + '" target="_blank" rel="noopener">Zobacz w Rejestrze Urbanistycznym →</a>' : '') + '</div>';
         box.style.display = 'block';
       }
@@ -1314,12 +1344,12 @@
     if (!box) return;
     const r = function (k, v) { return v ? '<div class="legenda-row"><span>' + k + '</span><strong>' + escH(v) + '</strong></div>' : ''; };
     let h = '<div class="legenda-title">Strefa planistyczna (plan ogólny gminy)</div><div class="legenda-body">';
-    h += r('Strefa', (wynik.oznaczenie || wynik.kod) + (wynik.nazwaStrefy ? ' — ' + wynik.nazwaStrefy.toLowerCase() : (wynik.kod && STREFY_POG[wynik.kod] ? ' — strefa ' + STREFY_POG[wynik.kod] : '')));
+    h += r('Strefa', (wynik.oznaczenie || wynik.kod) + (wynik.nazwaStrefy ? ' - ' + wynik.nazwaStrefy.toLowerCase() : (wynik.kod && STREFY_POG[wynik.kod] ? ' - strefa ' + STREFY_POG[wynik.kod] : '')));
     h += r('Maks. wysokość zabudowy', wynik.wysokosc);
     h += r('Maks. udział powierzchni zabudowy', wynik.zabudowa);
     h += r('Min. powierzchnia biologicznie czynna', wynik.pbc);
     h += r('Maks. intensywność zabudowy', wynik.intensywnosc);
-    h += r('Obszar uzupełnienia zabudowy', wynik.ouz ? 'tak' + (wynik.ouzOzn ? ' (' + wynik.ouzOzn + ')' : '') + ' — możliwa decyzja WZ' : 'nie — bez MPZP decyzja WZ nie będzie możliwa');
+    h += r('Obszar uzupełnienia zabudowy', wynik.ouz ? 'tak' + (wynik.ouzOzn ? ' (' + wynik.ouzOzn + ')' : '') + ' - możliwa decyzja WZ' : 'nie - bez MPZP decyzja WZ nie będzie możliwa');
     if (wynik.ozs) h += r('Obszar zabudowy śródmiejskiej', 'tak');
     h += r('Profil podstawowy', wynik.profilPodst);
     h += r('Profil dodatkowy', wynik.profilDod);
@@ -1346,7 +1376,7 @@
       window.gruntowoRaport.pog = wynik;
       oglos('gruntowo:pog', wynik);
       if (wynik.status !== 'jest') {
-        znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego — zweryfikować w gminie', 'brak');
+        znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego - zweryfikować w gminie', 'brak');
       }
     };
     fetchZPonowieniem(url, 2)
@@ -1386,13 +1416,13 @@
   }
 
   // Pobiera legende MPZP (symbol strefy + link do uchwaly) przez GetFeatureInfo.
-  // MPZP dla dzialki — DWA niezalezne zrodla:
-  //  1) GetFeatureInfo (dane opisowe: uchwala, data, link) — bywa zawodny: np. dla Lubonia zwraca
+  // MPZP dla dzialki - DWA niezalezne zrodla:
+  //  1) GetFeatureInfo (dane opisowe: uchwala, data, link) - bywa zawodny: np. dla Lubonia zwraca
   //     "brak wyniku", choc plan jest na mapie;
   //  2) POKRYCIE MAPY: pobieramy obraz warstw planu i liczymy, jaka czesc dzialki jest pod planem.
-  //     Jesli mapa pokazuje plan na dzialce — plan JEST, niezaleznie od odpowiedzi opisowej.
+  //     Jesli mapa pokazuje plan na dzialce - plan JEST, niezaleznie od odpowiedzi opisowej.
   const URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
-  const ZNAK_MPZP = ['Nie znaleziono MPZP', 'dla działki nie znaleziono planu miejscowego — zweryfikować w gminie'];
+  const ZNAK_MPZP = ['Nie znaleziono MPZP', 'dla działki nie znaleziono planu miejscowego - zweryfikować w gminie'];
   const LINKI_MPZP = '<div class="legenda-linki">Gdzie sprawdzić:' +
     '<a href="https://rejestr-urbanistyczny.gov.pl/" target="_blank" rel="noopener">Rejestr Urbanistyczny (plany gmin) →</a>' +
     '<a href="https://www.e-mapa.net" target="_blank" rel="noopener">e-mapa.net (wykaz planów gminy) →</a>' +
@@ -1410,7 +1440,7 @@
 
     const opis = fetchZPonowieniem(urlFI, 2).then(function (r) { return r.text(); }).catch(function () { return null; });
     const mapa = pokrycieMPZP(bbox, wkt).catch(function () { return null; });
-    // 3) Rejestr Urbanistyczny — oficjalny rejestr aktow (tytul, status, data, link do uchwaly)
+    // 3) Rejestr Urbanistyczny - oficjalny rejestr aktow (tytul, status, data, link do uchwaly)
     const rej = ruFI('wms-mpzp', RU_MPZP_FI, c.lon, c.lat).catch(function () { return null; });
 
     Promise.all([opis, mapa, rej]).then(function (w) {
@@ -1462,7 +1492,7 @@
       if (status !== 'jest') {
         znakWodny('map-mpzp', ZNAK_MPZP[0], ZNAK_MPZP[1], 'brak');
         box.innerHTML = '<div class="legenda-note"><strong>Nie znaleziono planu miejscowego dla działki</strong> ani w Krajowej Integracji MPZP, ani w Rejestrze Urbanistycznym. ' +
-          'Gminy uzupełniają Rejestr do końca listopada 2026 — przed decyzją zweryfikuj w gminie (wypis i wyrys z planu). Jeśli planu nie ma, zabudowa jest możliwa na podstawie decyzji o warunkach zabudowy (WZ).' +
+          'Gminy uzupełniają Rejestr do końca listopada 2026 - przed decyzją zweryfikuj w gminie (wypis i wyrys z planu). Jeśli planu nie ma, zabudowa jest możliwa na podstawie decyzji o warunkach zabudowy (WZ).' +
           blokProj + LINKI_MPZP + '</div>';
         box.style.display = 'block';
         return;
@@ -1483,11 +1513,11 @@
         box.innerHTML = h;
       } else if (ru) {
         box.innerHTML = '<div class="legenda-title">Plan miejscowy dla działki</div><div class="legenda-body">' + blokRU +
-          '<p class="legenda-ru-proj">Symbol terenu (np. 12MN) odczytaj z rysunku planu' + (pokrycie !== null ? ' — mapa powyżej' : ' w Rejestrze') + '; zapisy dla tego terenu są w uchwale.</p></div>';
+          '<p class="legenda-ru-proj">Symbol terenu (np. 12MN) odczytaj z rysunku planu' + (pokrycie !== null ? ' - mapa powyżej' : ' w Rejestrze') + '; zapisy dla tego terenu są w uchwale.</p></div>';
       } else {
         box.innerHTML = '<div class="legenda-note"><strong>Działka jest objęta planem miejscowym</strong>' +
           (pokrycie !== null ? ' (plan na mapie obejmuje ok. ' + Math.round(pokrycie) + '% działki)' : '') +
-          '. Usługa krajowa nie udostępnia dla tej gminy numeru uchwały ani przeznaczenia w formie danych — odczytaj je z rysunku planu powyżej lub z uchwały.' +
+          '. Usługa krajowa nie udostępnia dla tej gminy numeru uchwały ani przeznaczenia w formie danych - odczytaj je z rysunku planu powyżej lub z uchwały.' +
           LINKI_MPZP + '</div>';
       }
       box.style.display = 'block';
@@ -1552,7 +1582,7 @@
     if (!html) return wynik;
     const plain = html.replace(/<[^>]+>/g, ' \n ').replace(/&nbsp;/g, ' ');
 
-    // LINK do uchwaly — szukamy w kolejnosci pewnosci:
+    // LINK do uchwaly - szukamy w kolejnosci pewnosci:
     // 1) link w atrybutach wskazujacy dziennik urzedowy / edziennik / PDF planu
     let linkM = html.match(/(https?:\/\/[^\s"'<>]*(?:edziennik|dziennik|dzienniki|monitorpolski)[^\s"'<>]*)/i);
     // 2) dowolny link do PDF (czesto to skan uchwaly)
@@ -1564,8 +1594,8 @@
     }
     if (linkM) wynik.link = (linkM[1] || linkM[0]);
 
-    // SYMBOL strefy (MN, MN2, 5MN.3, U, RM, ZL, MN/U...) — wg konwencji MPZP
-    const symM = plain.match(/\b(\d{0,2}[A-Z]{1,3}\d{0,2}(?:[\.\/][A-Z0-9]{1,4})?)\b(?=[\s\n]*[-–:]?\s*(?:tereny|zabudow|przeznacz|funkcj))/i)
+    // SYMBOL strefy (MN, MN2, 5MN.3, U, RM, ZL, MN/U...) - wg konwencji MPZP
+    const symM = plain.match(/\b(\d{0,2}[A-Z]{1,3}\d{0,2}(?:[\.\/][A-Z0-9]{1,4})?)\b(?=[\s\n]*[--:]?\s*(?:tereny|zabudow|przeznacz|funkcj))/i)
       || plain.match(/(?:symbol|oznaczenie|przeznaczenie|funkcja)[\s:\n]+(\d{0,2}[A-Z]{1,3}\d{0,2}(?:[\.\/][A-Z0-9]{1,4})?)/i);
     if (symM) wynik.symbol = symM[1];
     // Format tabelaryczny/XML uslug gminnych (np. FUN_SYMB, numer_uchwaly)
@@ -1577,7 +1607,7 @@
     const u2 = poleTabeli(html, /^uchwa[łl]a$/i); if (u2) wynik.uchwala = u2;
     const d2 = poleTabeli(html, /^data uchwa[łl]y$/i); if (d2) wynik.data = d2;
 
-    // NUMER UCHWALY — rzymskie/arabskie, np. "nr XLII/348/2018" albo "nr 348/2018"
+    // NUMER UCHWALY - rzymskie/arabskie, np. "nr XLII/348/2018" albo "nr 348/2018"
     const uchM = plain.match(/(?:uchwa[łl][aey])[\s\S]{0,40}?(nr\.?\s*[IVXLCDM]+\/\d+\/\d{2,4})/i)
       || plain.match(/(nr\.?\s*[IVXLCDM]+\/\d+\/\d{2,4})/i)
       || plain.match(/(?:uchwa[łl][aey])[\s\S]{0,40}?(nr\.?\s*\d+\/\d{2,4})/i);
@@ -1594,7 +1624,7 @@
   // KLUCZOWE: obraz WMS ma proporcje wg wymiary() (dopasowane do metrow, z korekta cos),
   // a nie proporcje bbox w stopniach. SVG musi miec te same proporcje co obraz
   // i byc przyciety tak samo (object-fit:cover -> preserveAspectRatio slice).
-  // Etykieta wymiaru — zlote tlo, wieksza i wyrazniejsza (bo tylko dwie na mape)
+  // Etykieta wymiaru - zlote tlo, wieksza i wyrazniejsza (bo tylko dwie na mape)
   function etykietaWymiar(mx, my, tekst) {
     const szer = tekst.length * 13 + 24;
     return '<g>' +
@@ -1644,10 +1674,10 @@
     const box = document.getElementById('wymiary-dane');
     if (!box) return;
     box.innerHTML =
-      '<div class="wym-item"><span class="wym-label">Dlugosc (gabaryt)</span><span class="wym-val">' + w.dlugosc + ' m</span></div>' +
-      '<div class="wym-item"><span class="wym-label">Szerokosc (gabaryt)</span><span class="wym-val">' + w.szerokosc + ' m</span></div>' +
-      '<div class="wym-item"><span class="wym-label">Obwod dzialki</span><span class="wym-val">' + w.obwod + ' m</span></div>' +
-      '<div class="wym-item"><span class="wym-label">Liczba bokow</span><span class="wym-val">' + w.boki + '</span></div>';
+      '<div class="wym-item"><span class="wym-label">Długość (gabaryt)</span><span class="wym-val">' + w.dlugosc + ' m</span></div>' +
+      '<div class="wym-item"><span class="wym-label">Szerokość (gabaryt)</span><span class="wym-val">' + w.szerokosc + ' m</span></div>' +
+      '<div class="wym-item"><span class="wym-label">Obwód działki</span><span class="wym-val">' + w.obwod + ' m</span></div>' +
+      '<div class="wym-item"><span class="wym-label">Liczba boków</span><span class="wym-val">' + w.boki + '</span></div>';
     const sekcja = document.getElementById('sec-wymiary');
     if (sekcja) sekcja.style.display = 'block';
   }
@@ -1698,7 +1728,7 @@
       paths += '<path d="' + d + 'Z" fill="rgba(201,169,110,0.18)" stroke="#c9a961" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>';
 
       // WYMIARY jako LINIE WYMIAROWE na krawedziach prostokata otaczajacego dzialke.
-      // Prostokat zorientowany wzdluz najdluzszego boku — linie zawsze rownolegle do dzialki.
+      // Prostokat zorientowany wzdluz najdluzszego boku - linie zawsze rownolegle do dzialki.
       if (pokazWymiary && punkty.length >= 3) {
         const lonSr = (minLon + maxLon) / 2, latSr = (minLat + maxLat) / 2;
         const mp = punkty.map(function (pt) {
@@ -1710,7 +1740,7 @@
         });
 
         // === WYMIARY: linie leza WZDLUZ dwoch najdluzszych bokow samej dzialki ===
-        // (nie wzdluz prostokata otaczajacego — to eliminuje przesuniecie).
+        // (nie wzdluz prostokata otaczajacego - to eliminuje przesuniecie).
 
         // Srodek dzialki w pikselach (do odsuniecia linii na wlasciwa strone)
         const cx = mp.reduce(function (s, m) { return s + m.x; }, 0) / mp.length;
@@ -1736,7 +1766,7 @@
         }
         if (!bok2) bok2 = boki[1] || boki[0];
 
-        // Gabaryty (dlugosc x szerokosc) — rzuty na osie bok1
+        // Gabaryty (dlugosc x szerokosc) - rzuty na osie bok1
         const uMx = Math.cos(bok1.kat), uMy = Math.sin(bok1.kat);
         const pMx = -uMy, pMy = uMx;
         let minU = 1e9, maxU = -1e9, minP = 1e9, maxP = -1e9;
@@ -1780,7 +1810,7 @@
     });
     if (!paths) return;
 
-    // Po narysowaniu — wypelnij wymiary pod mapa (jesli sekcja istnieje)
+    // Po narysowaniu - wypelnij wymiary pod mapa (jesli sekcja istnieje)
     if (pokazWymiary && window._wymiaryDzialki) {
       wypelnijWymiaryPodMapa(window._wymiaryDzialki);
       oglos('gruntowo:wymiary', window._wymiaryDzialki);
@@ -1824,7 +1854,7 @@
     return [c.lon - r / mLon, c.lat - r / mLat, c.lon + r / mLon, c.lat + r / mLat];
   }
 
-  // ZNAK WODNY na mapie — np. gdy nie znaleziono planu (MPZP/POG) albo form ochrony przyrody.
+  // ZNAK WODNY na mapie - np. gdy nie znaleziono planu (MPZP/POG) albo form ochrony przyrody.
   // typ: 'brak' (szary, neutralny) | 'ok' (zielonkawy) | 'uwaga' (zloty)
   function znakWodny(idMapy, tytul, podtytul, typ) {
     const img = $(idMapy);
@@ -1883,7 +1913,7 @@
   }
 
   // Narzedzia map udostepnione innym skryptom (raport rozszerzony uzywa tych samych
-  // podkladow, fallbacku ortofoto i obrysu dzialki — bez kopiowania kodu).
+  // podkladow, fallbacku ortofoto i obrysu dzialki - bez kopiowania kodu).
   window.GruntowoMapy = {
     setMapa: setMapa,
     setMapaOverlay: setMapaOverlay,

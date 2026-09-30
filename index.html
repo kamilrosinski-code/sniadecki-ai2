@@ -3,30 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gruntowo.pl — pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić</title>
+  <title>gruntowo.pl - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić</title>
   <meta name="description" content="Pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić. Bezpłatny raport o działce: plan miejscowy, ceny transakcyjne z okolicy, media, zdjęcia lotnicze." />
   <!-- Podglad linku (Messenger, WhatsApp, Facebook, LinkedIn, SMS) -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="gruntowo.pl" />
   <meta property="og:url" content="https://gruntowo.pl/" />
-  <meta property="og:title" content="gruntowo.pl — pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
+  <meta property="og:title" content="gruntowo.pl - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
   <meta property="og:description" content="Bezpłatny raport o działce: plan miejscowy, ceny transakcyjne z okolicy, media, zdjęcia lotnicze." />
   <meta property="og:locale" content="pl_PL" />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="gruntowo.pl — pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
+  <meta name="twitter:title" content="gruntowo.pl - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
 
-  <!-- NAV — przezroczysty, bez logo w pasku -->
+  <!-- NAV - przezroczysty, bez logo w pasku -->
   <nav class="nav" id="nav">
     <a href="#" class="nav-logo">
-      <img src="gruntowo-logo.png" alt="Gruntowo.com — Portal z gruntami" class="nav-logo-img" />
+      <img src="gruntowo-logo.png" alt="gruntowo.pl" class="nav-logo-img" />
     </a>
     <ul class="nav-links">
       <li><a href="#sourcing" data-cms="nav_sourcing">Jak analizujemy Twój grunt?</a></li>
@@ -48,8 +48,8 @@
     </ul>
   </div>
 
-  <!-- HERO — zdjęcie od samej góry -->
-  <section class="hero">
+  <!-- HERO - zdjęcie od samej góry -->
+  <section class="hero" id="szukaj">
     <div class="hero-bg"></div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
@@ -57,10 +57,10 @@
       <h1 class="hero-headline" data-cms="hero_headline">Grunt pod<br /><em>właściwą decyzję</em></h1>
       <p class="hero-sub" data-cms="hero_sub">Masz grunt? Wypełnij formularz i dowiedz się o jego potencjale całkowicie bezpłatnie! W przypadku najciekawszych nieruchomości możesz otrzymać darmową konsultację naszego eksperta.</p>
 
-      <!-- WYSZUKIWARKA — jedna prosta ścieżka -->
+      <!-- WYSZUKIWARKA - jedna prosta ścieżka -->
       <div class="search-box" id="search-box">
         <div class="search-step" id="step-1">
-          <p class="search-hint-sm">Wpisz miejscowość, w której leży działka — pokażemy mapę, na której wskażesz ją pinezką.</p>
+          <p class="search-hint-sm">Wpisz miejscowość, w której leży działka - pokażemy mapę, na której wskażesz ją pinezką.</p>
           <div class="search-row">
             <div class="search-field search-field-wide">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -188,17 +188,17 @@
         <div class="cards">
           <div class="card src-card" data-model="1"><span class="card-n">01</span><h3 data-cms="src1_title">Model 1 · Bezpłatna analiza w kilka minut</h3><p data-cms="src1_text">Najczystsza forma prezentacji działki dostępna na rynku.</p></div>
           <div class="card src-card card-hi" data-model="2"><span class="card-n">02</span><h3 data-cms="src2_title">Model 2 · Raport rozszerzony</h3><p data-cms="src2_text">Rozjaśnia większość znaków zapytania, które mogą się pojawić przy ocenie działki.</p></div>
-          <div class="card src-card" data-model="3"><span class="card-n">03</span><h3 data-cms="src3_title">Model 3 · Konsultacja z ekspertem</h3><p data-cms="src3_text">12 lat doświadczenia w pigułce — podczas 30-minutowej konsultacji.</p></div>
-          <div class="card src-card" data-model="4"><span class="card-n">04</span><h3 data-cms="src4_title">Model 4 · Wsparcie przy gruntach o złożonych problemach</h3><p data-cms="src4_text">Zmiana MPZP, planu ogólnego, uzyskanie WZ lub pozwolenia na budowę — obsługujemy indywidualnie, to nasz chleb powszedni.</p></div>
+          <div class="card src-card" data-model="3"><span class="card-n">03</span><h3 data-cms="src3_title">Model 3 · Konsultacja z ekspertem</h3><p data-cms="src3_text">12 lat doświadczenia w pigułce - podczas 30-minutowej konsultacji.</p></div>
+          <div class="card src-card" data-model="4"><span class="card-n">04</span><h3 data-cms="src4_title">Model 4 · Wsparcie przy gruntach o złożonych problemach</h3><p data-cms="src4_text">Zmiana MPZP, planu ogólnego, uzyskanie WZ lub pozwolenia na budowę - obsługujemy indywidualnie, to nasz chleb powszedni.</p></div>
         </div>
         <div class="photo-frame photo-tall" id="src-visual">
-          <!-- Zdjęcia — jedno na model, przełączane najechaniem -->
+          <!-- Zdjęcia - jedno na model, przełączane najechaniem -->
           <img class="src-foto src-foto-1 aktywne" src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80" alt="Działka z lotu ptaka" loading="lazy" />
           <img class="src-foto src-foto-2" src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80" alt="Teren inwestycyjny" loading="lazy" />
           <img class="src-foto src-foto-3" src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&q=80" alt="Konsultacja inwestycyjna" loading="lazy" />
           <img class="src-foto src-foto-4" src="https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&q=80" alt="Dokumenty i procedury" loading="lazy" />
 
-          <!-- PANELE ANALIZY — jeden na model -->
+          <!-- PANELE ANALIZY - jeden na model -->
           <!-- Model 1: bezpłatny -->
           <div class="src-panel src-panel-1 aktywne">
             <div class="sp-head">ANALIZA · BEZPŁATNA</div>
@@ -220,7 +220,7 @@
           <!-- Model 3: konsultacja z ekspertem -->
           <div class="src-panel src-panel-3">
             <div class="sp-head">ANALIZA · KONSULTACJA EKSPERTA</div>
-            <div class="sp-row"><span>Szacowana wartość</span><b>620 000 – 710 000 zł</b></div>
+            <div class="sp-row"><span>Szacowana wartość</span><b>620 000 - 710 000 zł</b></div>
             <div class="sp-row"><span>Chłonność działki</span><b>~ 12 lokali (MN) / 34 (MW)</b></div>
             <div class="sp-row"><span>Charakter zabudowy</span><b>szeregowa / wielorodzinna</b></div>
             <div class="sp-row"><span>Potencjał sprzedażowy</span><b>wysoki</b></div>
@@ -247,7 +247,7 @@
       <span class="tag tag-light">Filar 02</span>
       <h2 class="h2 h2-light" data-cms="oferty_title">Wybierz model<br /><em>dopasowany do Twoich potrzeb</em></h2>
       <div class="oferty-warianty">
-        <!-- OFERTA 1 — bezpłatna -->
+        <!-- OFERTA 1 - bezpłatna -->
         <div class="ofr">
           <div class="ofr-label" data-cms="fmt1_label">Model 1. Raport bezpłatny</div>
           <div class="ofr-cena"><span class="ofr-num" data-cms="fmt1_title">Bezpłatnie</span></div>
@@ -257,14 +257,14 @@
             <li>Podstawowe parametry i przeznaczenie w planie</li>
             <li>Historyczne zdjęcia lotnicze</li>
           </ul>
-          <a href="#szukaj" class="ofr-btn">Sprawdź działkę za darmo</a>
+          <a href="#szukaj" class="ofr-btn" data-do-wyszukiwarki>Sprawdź działkę za darmo</a>
         </div>
 
-        <!-- OFERTA 2 — 69 zł -->
+        <!-- OFERTA 2 - 69 zł -->
         <div class="ofr">
           <div class="ofr-label" data-cms="fmt2_label">Model 2. Raport rozszerzony</div>
           <div class="ofr-cena"><span class="ofr-num" data-cms="fmt2_title">69</span><span class="ofr-unit">zł</span></div>
-          <p class="ofr-desc" data-cms="fmt2_text">Obszerna analiza — korzyści, zagrożenia oraz werdykt naszego zaawansowanego modelu analitycznego.</p>
+          <p class="ofr-desc" data-cms="fmt2_text">Obszerna analiza - korzyści, zagrożenia oraz werdykt naszego zaawansowanego modelu analitycznego.</p>
           <ul class="ofr-lista">
             <li>Wszystko z raportu bezpłatnego</li>
             <li>Werdykt inwestycyjny modelu analitycznego</li>
@@ -276,12 +276,12 @@
           <a href="#haslo" class="ofr-haslo-link">Masz hasło? Odblokuj raport za darmo →</a>
         </div>
 
-        <!-- OFERTA 3 — 499 zł, wyróżniona -->
+        <!-- OFERTA 3 - 499 zł, wyróżniona -->
         <div class="ofr ofr-premium">
           <div class="ofr-badge">★ z ekspertem</div>
           <div class="ofr-label" data-cms="fmt3_label">Model 3 · Konsultacja z ekspertem</div>
           <div class="ofr-cena"><span class="ofr-num" data-cms="fmt3_title">499</span><span class="ofr-unit">zł</span></div>
-          <p class="ofr-desc" data-cms="fmt3_text">Konsultacja z naszym ekspertem — nie chatbotem. Ocena przeznaczenia działki oraz dobór najlepszej formy przekształcenia lub adaptacji nieruchomości.</p>
+          <p class="ofr-desc" data-cms="fmt3_text">Konsultacja z naszym ekspertem - nie chatbotem. Ocena przeznaczenia działki oraz dobór najlepszej formy przekształcenia lub adaptacji nieruchomości.</p>
           <ul class="ofr-lista">
             <li><strong>Wszystko z raportu rozszerzonego</strong></li>
             <li>Indywidualna konsultacja z ekspertem (nie chatbot)</li>
@@ -289,7 +289,7 @@
             <li>Propozycje formy sprzedaży i doradztwo projektowe</li>
             <li>Dostęp do naszej bazy inwestorów</li>
           </ul>
-          <a href="#kontakt" class="ofr-btn ofr-btn-premium">Umów konsultację</a>
+          <a href="#kontakt" class="ofr-btn ofr-btn-premium" data-zencal>Umów konsultację</a>
         </div>
       </div>
       <!-- HASŁO DO DARMOWEGO RAPORTU ROZSZERZONEGO (haslo.js) -->
@@ -297,7 +297,7 @@
         <div class="haslo-tekst">
           <span class="haslo-eyebrow">Raport rozszerzony · dostęp z hasłem</span>
           <p class="haslo-tytul">Masz hasło do darmowego raportu rozszerzonego?</p>
-          <p class="haslo-sub">Wklej je poniżej — odblokujesz pełną analizę z werdyktem, plusami i minusami działki.</p>
+          <p class="haslo-sub">Wklej je poniżej - odblokujesz pełną analizę z werdyktem, plusami i minusami działki.</p>
         </div>
         <div class="haslo-row">
           <input type="password" data-haslo-pole placeholder="Wklej hasło" autocomplete="off" aria-label="Hasło do raportu rozszerzonego" />
@@ -322,11 +322,11 @@
     <div class="container">
       <div class="eco-layout">
         <div>
-          <span class="tag" data-cms="eko_tag">Filar 03 — Doświadczony strateg na rynku od 12 lat</span>
+          <span class="tag" data-cms="eko_tag">Filar 03 - Doświadczony strateg na rynku od 12 lat</span>
           <h2 class="h2" data-cms="eko_title">Partner biznesowy<br /><em>o deweloperskich korzeniach</em></h2>
           <p class="lead" data-cms="eko_lead">Doświadczenie z realnych transakcji zbudowało nasz warsztat oceny potencjału nieruchomości.</p>
           <div class="eco-list">
-            <div class="eco-node"><div class="eco-dot"></div><div><h4 data-cms="eko1_title">Ponad 200 transakcji na rynku nieruchomości</h4><p data-cms="eko1_text">Zespół gruntowo.pl ma na koncie ponad 200 wspólnych transakcji — sprzedaż nieruchomości lokalowych, gruntów pod zabudowę jednorodzinną oraz poszukiwaną zabudowę wielorodzinną.</p></div></div>
+            <div class="eco-node"><div class="eco-dot"></div><div><h4 data-cms="eko1_title">Ponad 200 transakcji na rynku nieruchomości</h4><p data-cms="eko1_text">Zespół gruntowo.pl ma na koncie ponad 200 wspólnych transakcji - sprzedaż nieruchomości lokalowych, gruntów pod zabudowę jednorodzinną oraz poszukiwaną zabudowę wielorodzinną.</p></div></div>
             <div class="eco-node"><div class="eco-dot"></div><div><h4 data-cms="eko2_title">Znajomość rynku nieruchomości</h4><p data-cms="eko2_text">Zdecydowana większość naszych transakcji to powiat poznański, ale doskonale odnajdujemy się także w rynku aparthoteli oraz inwestycjach deweloperskich na siedmiu największych rynkach w Polsce.</p></div></div>
             <div class="eco-node"><div class="eco-dot"></div><div><h4 data-cms="eko3_title">Inwestorzy i fundusze</h4><p data-cms="eko3_text">Lata doświadczeń to szeroka baza kontaktów, która pozwala sprzedać nieruchomość, zanim trafi na portale.</p></div></div>
             <div class="eco-node"><div class="eco-dot"></div><div><h4 data-cms="eko4_title">Współpraca z najbardziej rozpoznawalnymi</h4><p data-cms="eko4_text">Mamy na koncie współpracę z najbardziej liczącymi się biurami nieruchomości oraz największymi deweloperami w Polsce.</p></div></div>
@@ -355,7 +355,7 @@
     </div>
   </section>
 
-  <!-- ROADMAP — sekcja "przyklejana" (wariant B): scroll przewija etapy -->
+  <!-- ROADMAP - sekcja "przyklejana" (wariant B): scroll przewija etapy -->
   <section class="section section-dark etapy-pin" id="etapy-pin">
     <div class="etapy-sticky">
     <div class="container">
@@ -371,7 +371,7 @@
             <div class="etap-tresc">
               <span class="etap-czas">Od razu</span>
               <h3>Zgłoszenie i raport rozszerzony</h3>
-              <p>Zgłaszasz nieruchomość i od razu otrzymujesz raport rozszerzony — pełną analizę działki z werdyktem naszego modelu.</p>
+              <p>Zgłaszasz nieruchomość i od razu otrzymujesz raport rozszerzony - pełną analizę działki z werdyktem naszego modelu.</p>
             </div>
           </div>
           <div class="etap" data-etap="2">
@@ -395,7 +395,7 @@
             <div class="etap-tresc">
               <span class="etap-czas">Do 7 dni</span>
               <h3>Konsultacja z ekspertem</h3>
-              <p>Odbywasz konsultację — spotkanie online lub telekonferencję — w terminie do 7 dni od zgłoszenia.</p>
+              <p>Odbywasz konsultację - spotkanie online lub telekonferencję - w terminie do 7 dni od zgłoszenia.</p>
             </div>
           </div>
         </div>
@@ -418,6 +418,8 @@
         <form id="contact-form" novalidate>
           <div class="fg"><label>Imię i nazwisko</label><input type="text" id="c-name" placeholder="Jan Kowalski" /></div>
           <div class="fg"><label>E-mail</label><input type="email" id="c-email" placeholder="jan@firma.pl" /></div>
+          <div class="fg"><label>Telefon <span style="opacity:.6">(opcjonalnie)</span></label><input type="tel" id="c-tel" placeholder="600 000 000" /></div>
+          <div class="fg" style="position:absolute;left:-5000px" aria-hidden="true"><input type="text" name="strona_www" tabindex="-1" autocomplete="off" /></div>
           <div class="fg"><label>Temat</label>
             <select id="c-topic">
               <option value="">Wybierz…</option>
@@ -473,6 +475,6 @@
   </footer>
 
   <script src="haslo.js?v=20260925"></script>
-  <script src="main.js?v=17"></script>
+  <script src="main.js?v=21"></script>
 </body>
 </html>

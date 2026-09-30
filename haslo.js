@@ -1,11 +1,11 @@
 /*
- * gruntowo.pl — dostep do raportu rozszerzonego haslem (etap przejsciowy, przed Przelewy24).
+ * gruntowo.pl - dostep do raportu rozszerzonego haslem (etap przejsciowy, przed Przelewy24).
  *
- * UWAGA: to zabezpieczenie po stronie przegladarki — wystarcza na akcje promocyjna
+ * UWAGA: to zabezpieczenie po stronie przegladarki - wystarcza na akcje promocyjna
  * ("wklej haslo, dostan raport rozszerzony za darmo"), ale NIE chroni tresci przed kims,
  * kto zna JavaScript. Docelowo dostep ma nadawac backend (PHP na LH) po oplaceniu raportu.
  *
- * Haslo nie jest zapisane jawnie — trzymamy tylko jego skrot SHA-256.
+ * Haslo nie jest zapisane jawnie - trzymamy tylko jego skrot SHA-256.
  * Zmiana hasla: policz nowy skrot, np. w terminalu:
  *     echo -n "noweHaslo" | sha256sum
  * i wklej wynik do HASLO_SHA256 ponizej.
@@ -20,7 +20,7 @@
 
   function sha256(tekst) {
     if (!window.crypto || !window.crypto.subtle) {
-      return Promise.reject(new Error('Przegladarka nie obsluguje crypto.subtle (wymagany HTTPS).'));
+      return Promise.reject(new Error('Przeglądarka nie obsługuje crypto.subtle (wymagany HTTPS).'));
     }
     var dane = new TextEncoder().encode(tekst);
     return window.crypto.subtle.digest('SHA-256', dane).then(function (buf) {
@@ -34,10 +34,10 @@
     return sha256(String(haslo || '').trim()).then(function (h) { return h === HASLO_SHA256; });
   }
 
-  // Zapamietanie odblokowania (per przegladarka). Pamiec przegladarki moze byc wylaczona —
+  // Zapamietanie odblokowania (per przegladarka). Pamiec przegladarki moze byc wylaczona -
   // wtedy dzialamy dalej, tylko klient poda haslo ponownie przy nastepnej wizycie.
   function zapamietaj() {
-    try { localStorage.setItem(KLUCZ, '1'); } catch (e) { /* brak pamieci — trudno */ }
+    try { localStorage.setItem(KLUCZ, '1'); } catch (e) { /* brak pamieci - trudno */ }
     try { sessionStorage.setItem(KLUCZ, '1'); } catch (e) { /* j.w. */ }
   }
   function czyOdblokowane() {
@@ -76,17 +76,17 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var wartosc = pole ? pole.value : '';
-      if (!wartosc.trim()) { pokaz('Wklej haslo, ktore otrzymales.', true); if (pole) pole.focus(); return; }
+      if (!wartosc.trim()) { pokaz('Wklej hasło, które otrzymałeś.', true); if (pole) pole.focus(); return; }
       sprawdz(wartosc).then(function (ok) {
-        if (!ok) { pokaz('Nieprawidlowe haslo. Sprawdz, czy wklejasz je bez spacji.', true); if (pole) pole.select(); return; }
+        if (!ok) { pokaz('Nieprawidłowe hasło. Sprawdź, czy wklejasz je bez spacji.', true); if (pole) pole.select(); return; }
         zapamietaj();
-        pokaz('Haslo poprawne — otwieramy raport rozszerzony...', false);
+        pokaz('Hasło poprawne - otwieramy raport rozszerzony...', false);
         if (opcje.onOk) { opcje.onOk(); return; }
         var id = opcje.idDzialki ? opcje.idDzialki() : '';
         window.location.href = adresRaportu(id);
       }).catch(function (err) {
-        console.warn('Haslo:', err);
-        pokaz('Nie udalo sie sprawdzic hasla w tej przegladarce. Otworz strone przez https://', true);
+        console.warn('Hasło:', err);
+        pokaz('Nie udało się sprawdzić hasła w tej przeglądarce. Otwórz stronę przez https://', true);
       });
     });
   }

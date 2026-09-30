@@ -50,13 +50,13 @@ address { font-style: normal; }
   display: flex;
   flex-direction: column;
   justify-content: center;
-  /* Zdjęcie jako tło — wgraj hero.jpeg do repo */
+  /* Zdjęcie jako tło - wgraj hero.jpeg do repo */
   background-image: url('hero.jpeg');
   background-size: cover;
   background-position: center 40%;
   background-color: #0d1a0d; /* fallback kolor */
 }
-/* Overlay — ciemniejszy u dołu, jasny u góry żeby nav był czytelny */
+/* Overlay - ciemniejszy u dołu, jasny u góry żeby nav był czytelny */
 .hero::before {
   content: '';
   position: absolute;
@@ -105,7 +105,7 @@ address { font-style: normal; }
 
 /* Mapa */
 .map-box { position: relative; height: 220px; border-radius: 6px; overflow: hidden; background: #1a1f1a; border: 1px solid rgba(201,169,110,.2); margin-bottom: .9rem; }
-.map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(201,169,110,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(201,169,110,.06) 1px,transparent 1px); background-size: 40px 40px; }
+.map-grid { position: absolute; inset: 0; background: url('tlo-warstwice-male.svg') center/cover no-repeat; opacity: .8; }
 .map-pin { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-100%); filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); animation: pd .4s .2s ease backwards; }
 .map-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map-label { position: absolute; top: 50%; left: calc(50% + 18px); transform: translateY(-50%); font-size: .72rem; font-weight: 500; letter-spacing: .1em; color: var(--gold); background: rgba(11,12,10,.85); padding: .3rem .6rem; border-radius: 3px; border: 1px solid rgba(201,169,110,.3); white-space: nowrap; }
@@ -319,7 +319,7 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
   .photo-wide { display: none; }
 }
 
-/* Logo Gruntowo — responsywne */
+/* Logo Gruntowo - responsywne */
 @media (max-width: 960px) {
   .nav-logo-img { height: 66px; }
   .nav.scrolled .nav-logo-img { height: 52px; }
@@ -353,7 +353,7 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
 .ft-logo-img { height: 60px; width: auto; opacity: 0.95; display: block; }
 
 /* ===========================
-   WYSZUKIWARKA — dwie ścieżki (zakładki)
+   WYSZUKIWARKA - dwie ścieżki (zakładki)
    =========================== */
 .search-tabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; }
 .search-tab {
@@ -425,7 +425,7 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
   letter-spacing: .01em;
 }
 
-/* Złota pinezka lokalizacji — nieruchoma, nad mapą */
+/* Złota pinezka lokalizacji - nieruchoma, nad mapą */
 .map-pin-gold {
   position: absolute;
   top: 50%;
@@ -490,19 +490,19 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
 
 /* MOBILE: wyszukiwarka, mapa i ekran "Ustalamy działkę" na pełną szerokość widoku */
 @media (max-width: 600px) {
-  /* Hero bez marginesów bocznych — pełna szerokość na mapę i potwierdzenie */
+  /* Hero bez marginesów bocznych - pełna szerokość na mapę i potwierdzenie */
   .hero-content { padding-left: .4rem !important; padding-right: .4rem !important; }
   /* Wyszukiwarka i ekran potwierdzenia rozciągają się na całą szerokość */
   .search-box { max-width: 100% !important; width: 100% !important; padding: 1rem .8rem !important; }
-  /* Mapa Leaflet wyższa na telefonie — lepiej widać działkę */
+  /* Mapa Leaflet wyższa na telefonie - lepiej widać działkę */
   .map-box, #leaflet-map, .map-frame, .map-static { min-height: 400px; }
-  /* Ekran "Ustalamy działkę" (step-3) — pełna szerokość, minimalny padding */
+  /* Ekran "Ustalamy działkę" (step-3) - pełna szerokość, minimalny padding */
   .confirm { padding: .5rem .3rem !important; }
   .confirm p { max-width: 100% !important; }
 }
 
 
-/* Trzy oferty na stronie — jak warianty w raporcie */
+/* Trzy oferty na stronie - jak warianty w raporcie */
 .oferty-warianty { display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; margin-top:2.5rem; }
 .ofr { position:relative; padding:2rem 1.75rem; background:rgba(255,255,255,.03); border:1px solid rgba(201,169,110,.2); border-radius:14px; display:flex; flex-direction:column; }
 .ofr-premium { border-color:rgba(201,169,110,.55); background:linear-gradient(165deg,rgba(201,169,110,.1),rgba(255,255,255,.02)); box-shadow:0 8px 40px rgba(201,169,110,.1); }
@@ -537,7 +537,7 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
 .etap-tresc p { color:#b8b4ab; font-size:.92rem; line-height:1.6; margin:0; }
 @media(max-width:600px){ .etapy { gap:1rem; } .etap-tresc h3 { font-size:1.15rem; } }
 
-/* Interaktywna wizualizacja modeli — zdjęcie + panel zmieniają się z najechaniem */
+/* Interaktywna wizualizacja modeli - zdjęcie + panel zmieniają się z najechaniem */
 #src-visual { position:relative; overflow:hidden; }
 .src-foto { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .6s ease; }
 .src-foto.aktywne { opacity:1; }
@@ -552,16 +552,16 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
 .src-card { cursor:pointer; transition:.2s; }
 .src-card:hover { border-color:rgba(201,169,110,.5); transform:translateX(4px); }
 
-/* Przyciski w data room — dwa obok siebie */
+/* Przyciski w data room - dwa obok siebie */
 .dr-btns { display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center; margin-top:.5rem; }
 .btn-outline { display:inline-block; padding:.7rem 1.4rem; border-radius:8px; border:1px solid rgba(201,169,110,.5); background:transparent; color:#c9a96e; font-size:.85rem; font-weight:600; text-decoration:none; transition:.18s; }
 .btn-outline:hover { background:rgba(201,169,110,.1); border-color:#c9a96e; }
 @media(max-width:560px){ .dr-btns { flex-direction:column; } .dr-btns a { width:100%; text-align:center; } }
 
-/* Wariant B — sekcja etapów "przyklejana": scroll przewija etapy, nie stronę */
+/* Wariant B - sekcja etapów "przyklejana": scroll przewija etapy, nie stronę */
 .etapy-pin { position:relative; height:500vh; padding:0; }
 .etapy-sticky { position:sticky; top:0; min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:3rem 0; }
-/* Na telefonie rezygnujemy z przyklejania (bywa mylące) — normalny układ */
+/* Na telefonie rezygnujemy z przyklejania (bywa mylące) - normalny układ */
 @media(max-width:700px){
   .etapy-pin { height:auto; }
   .etapy-sticky { position:static; min-height:0; }

@@ -1,5 +1,5 @@
 /*
- * gruntowo.pl — WYDRUK / ZAPIS DO PDF (raport darmowy i rozszerzony)
+ * gruntowo.pl - WYDRUK / ZAPIS DO PDF (raport darmowy i rozszerzony)
  *
  * Przycisk "Pobierz PDF" otwiera okno drukowania przegladarki -> "Zapisz jako PDF".
  * Nic nie jest pobierane ponownie: do PDF trafia dokladnie to, co jest na stronie
@@ -51,7 +51,7 @@
   .werdykt-liczba span { color: #14181a; }
   .werdykt-rekomendacja { color: #34383a; }
 
-  /* SEKCJE — naglowek + mapa zawsze razem */
+  /* SEKCJE - naglowek + mapa zawsze razem */
   .sec { margin: 5mm 0; }
   .sec-head { break-after: avoid; margin-bottom: 2.5mm; }
   .sec-title { font-size: 15pt; color: #14181a; }
@@ -77,7 +77,7 @@
   .zdjecia-grid { gap: 3mm; }
   .zdj-item { break-inside: avoid; }
 
-  /* znak wodny na mapie — czytelny na wydruku */
+  /* znak wodny na mapie - czytelny na wydruku */
   .znak-wodny { background: rgba(255,255,255,.88) !important; border-color: #bbb; -webkit-backdrop-filter: none; backdrop-filter: none; }
   .zw-tytul { color: #222 !important; }
   .zw-pod { color: #555 !important; }
@@ -91,7 +91,7 @@
 }
 
 @media print {
-  /* overflow:hidden blokuje dzielenie blokow na strony — w druku wylaczamy */
+  /* overflow:hidden blokuje dzielenie blokow na strony - w druku wylaczamy */
   .werdykt, .podsumowanie, .rep-hero, .premium-banner, .tx-table, .params { overflow: visible !important; }
   .rep-hero { break-inside: avoid; }
   /* nadpisanie starszych regul z raport-rozszerzony.css, ktore trzymaly cale bloki w jednym kawalku */

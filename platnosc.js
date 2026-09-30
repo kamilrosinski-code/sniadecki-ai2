@@ -1,11 +1,11 @@
 /*
- * gruntowo.pl — ZAKUP RAPORTU ROZSZERZONEGO (PayU)
+ * gruntowo.pl - ZAKUP RAPORTU ROZSZERZONEGO (PayU)
  *
  * Kup:      GruntowoPlatnosc.kup(idDzialki)  -> okienko z e-mailem -> strona platnosci PayU
- *           (albo dowolny przycisk z atrybutem data-kup-raport — dzialka brana z raportu)
+ *           (albo dowolny przycisk z atrybutem data-kup-raport - dzialka brana z raportu)
  * Sprawdz:  GruntowoPlatnosc.sprawdz(idDzialki, numerZamowienia) -> Promise<{oplacone, status}>
  *
- * Oplacone dzialki zapamietujemy w przegladarce (osobno kazda dzialka) — haslo dalej odblokowuje wszystko.
+ * Oplacone dzialki zapamietujemy w przegladarce (osobno kazda dzialka) - haslo dalej odblokowuje wszystko.
  * Backend: pliki PHP w folderze gruntowo-api na LH (platnosc-start.php, platnosc-status.php, payu-notify.php).
  */
 (function () {
@@ -14,8 +14,8 @@
   var API = 'https://sniadecki-development.pl/gruntowo-api';
   var KLUCZ = 'gruntowo_oplacone_v1';
   var CENA = '69 zł';
-  // Oficjalne logo PayU — plik pobrany ze strony PayU (Pliki do pobrania) i wgrany obok raportu.
-  // Najpierw payu-logo.svg, potem payu-logo.png; gdy zadnego nie ma — napis "PayU".
+  // Oficjalne logo PayU - plik pobrany ze strony PayU (Pliki do pobrania) i wgrany obok raportu.
+  // Najpierw payu-logo.svg, potem payu-logo.png; gdy zadnego nie ma - napis "PayU".
   var LOGO_PAYU = 'payu-logo.svg';
   function logoPayU(klasa) {
     return '<img class="' + (klasa || 'logo-payu') + '" src="' + LOGO_PAYU + '" alt="PayU" ' +
@@ -50,9 +50,9 @@
       '<div class="kup-cena"><strong>' + CENA + '</strong><span>jednorazowo, dostęp od razu po płatności</span></div>' +
       '<label class="kup-label" for="kup-email">Adres e-mail (na potwierdzenie płatności)</label>' +
       '<input id="kup-email" class="id-input" type="email" autocomplete="email" placeholder="jan@firma.pl" required />' +
-      '<label class="kup-zgoda"><input type="checkbox" id="kup-zgoda" required /> <span>Akceptuję <a href="regulamin.html" target="_blank" rel="noopener">regulamin</a> i chcę otrzymać raport od razu — wiem, że po jego dostarczeniu tracę prawo odstąpienia od umowy.</span></label>' +
+      '<label class="kup-zgoda"><input type="checkbox" id="kup-zgoda" required /> <span>Akceptuję <a href="regulamin.html" target="_blank" rel="noopener">regulamin</a> i chcę otrzymać raport od razu - wiem, że po jego dostarczeniu tracę prawo odstąpienia od umowy.</span></label>' +
       '<div class="kup-msg" role="status" aria-live="polite"></div>' +
-      '<button type="submit" class="btn btn-gold kup-btn">Przechodzę do płatności — ' + CENA + '</button>' +
+      '<button type="submit" class="btn btn-gold kup-btn">Przechodzę do płatności - ' + CENA + '</button>' +
       '<div class="kup-payu"><span>Bezpieczną płatność obsługuje</span>' + logoPayU() + '</div>' +
       '<p class="kup-info">BLIK, karta płatnicza lub szybki przelew. Po opłaceniu wrócisz do raportu rozszerzonego tej działki.</p>' +
       '</form>';

@@ -1,12 +1,12 @@
 /*
- * gruntowo.pl — RAPORT ROZSZERZONY
+ * gruntowo.pl - RAPORT ROZSZERZONY
  *
  * Jak to dziala:
- *  1. Bramka hasla (haslo.js). Po odblokowaniu dociagamy raport.js — ten sam co w raporcie
- *     darmowym — ktory buduje czesc A (mapy, parametry, ceny) i oglasza zdarzenia
+ *  1. Bramka hasla (haslo.js). Po odblokowaniu dociagamy raport.js - ten sam co w raporcie
+ *     darmowym - ktory buduje czesc A (mapy, parametry, ceny) i oglasza zdarzenia
  *     gruntowo:dzialka / gruntowo:ceny / gruntowo:wymiary.
  *  2. Po zdarzeniu gruntowo:dzialka uruchamiamy analizy czesci B (kazda niezalezna,
- *     z limitem czasu — awaria jednej uslugi nie blokuje reszty):
+ *     z limitem czasu - awaria jednej uslugi nie blokuje reszty):
  *       mpzp      KIMPZP GetFeatureInfo          -> czy jest plan, przeznaczenie
  *       pog       Plany ogolne gmin (EPSG:2180)  -> strefa planistyczna, obszar uzupelnienia zabudowy
  *       powodz    ISOK (Wody Polskie) GetMap+FI  -> % dzialki w strefie zalewowej, scenariusz
@@ -19,24 +19,26 @@
  *  3. Kazdy wynik zamienia sie na "czynniki" (plus / minus / do sprawdzenia, z waga).
  *     Z czynnikow liczony jest werdykt 0-100, pokazywany na poczatku i na koncu raportu.
  *
- * Reguly werdyktu: funkcja zbierzCzynniki() — tam dopisuje sie nowe plusy/minusy.
+ * Reguly werdyktu: funkcja zbierzCzynniki() - tam dopisuje sie nowe plusy/minusy.
  * Wszystkie uslugi sprawdzone 25.09.2026 z domeny gruntowo.pl (CORS dziala).
  */
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261001c';
+  var RAPORT_JS = 'raport.js?v=20261002c';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
   var URL_ISOK = 'https://wody.isok.gov.pl/wss/INSPIRE/INSPIRE_NZ_HY_MZPMRP_WMS';
   var URL_GDOS = 'https://sdi.gdos.gov.pl/wms';
   var URL_KIUT = 'https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaUzbrojeniaTerenu';
-  // Czesc powiatow (np. poznanski) odpowiada w KIUT bez naglowka CORS — przegladarka moze obraz
+  // Czesc powiatow (np. poznanski) odpowiada w KIUT bez naglowka CORS - przegladarka moze obraz
   // POKAZAC (mapa 07), ale nie moze go PRZEANALIZOWAC. Wtedy obraz pobieramy przez posrednika na LH.
   // Puste = bez posrednika (dla takich powiatow raport pokaze wskazowke zamiast analizy).
   var URL_KIUT_PROXY = 'https://sniadecki-development.pl/gruntowo-api/kiut.php';
   var URL_USTALENIA = 'https://sniadecki-development.pl/gruntowo-api/plan-ustalenia.php';
+  var URL_POZWOLENIA = 'https://sniadecki-development.pl/gruntowo-api/pozwolenia.php';
+  var URL_RWDZ = 'https://wyszukiwarka.gunb.gov.pl/';
   var URL_KIEG = 'https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow';
   var URL_NMT = 'https://services.gugik.gov.pl/nmt/';
   var URL_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
@@ -45,7 +47,7 @@
     'GDOS:ParkiKrajobrazowe', 'GDOS:ObszaryChronionegoKrajobrazu', 'GDOS:UzytkiEkologiczne', 'GDOS:ZespolyPrzyrodniczoKrajobrazowe'];
   var WARSTWY_ISOK = ['NZ.Fluvial', 'NZ.SeaWater'];
 
-  // Sieci KIUT — kolory odczytane z uslugi (render domyslny). tol = tolerancja koloru.
+  // Sieci KIUT - kolory odczytane z uslugi (render domyslny). tol = tolerancja koloru.
   var SIECI = [
     { klucz: 'elektro', nazwa: 'elektroenergetyczna', rgb: [248, 8, 8], css: '#f80808' },
     { klucz: 'gaz', nazwa: 'gazowa', rgb: [248, 152, 8], css: '#f89808' },
@@ -57,7 +59,7 @@
 
   // Skutki sieci przechodzacej PRZEZ dzialke
   var SKUTEK_SIECI = {
-    elektro: 'Linia wymaga pasa technologicznego — dla napowietrznej średniego napięcia ok. 7,5 m od osi, dla 110 kV nawet ok. 20 m; w pasie nie wolno budować. Możliwe przełożenie linii na koszt inwestora.',
+    elektro: 'Linia wymaga pasa technologicznego - dla napowietrznej średniego napięcia ok. 7,5 m od osi, dla 110 kV nawet ok. 20 m; w pasie nie wolno budować. Możliwe przełożenie linii na koszt inwestora.',
     gaz: 'Gazociąg ma strefę kontrolowaną, w której nie wolno budować.',
     cieplo: 'Sieć ciepłownicza zwykle wymaga służebności i odsunięcia zabudowy.',
     woda: 'Przewód przez działkę zwykle wymaga służebności przesyłu i odsunięcia budynku.',
@@ -65,15 +67,15 @@
     telekom: 'Zwykle łatwy do przełożenia, ale sprawdź służebność.'
   };
   // Sieci PRZY dzialce: strefa [m] od granicy, w ktorej siec obniza ocene (minus), i dalsza (uwaga).
-  // Usluga KIUT nie podaje rodzaju linii (napowietrzna/kablowa) ani napiecia — przyjmujemy wariant ostrozny.
+  // Usluga KIUT nie podaje rodzaju linii (napowietrzna/kablowa) ani napiecia - przyjmujemy wariant ostrozny.
   var STREFY_SIECI = {
     elektro: { strefa: 7.5, waga: -7, dalej: 20,
       opis: 'Jeśli to linia napowietrzna średniego napięcia, jej strefa ok. 7,5 m od osi (bez zabudowy) wchodzi na działkę. Rodzaj linii sprawdź na mapie zasadniczej lub u operatora sieci.',
-      opisDalej: 'Jeśli to linia wysokiego napięcia (110 kV), pas technologiczny może sięgać ok. 20 m od osi — sprawdź rodzaj linii.' },
+      opisDalej: 'Jeśli to linia wysokiego napięcia (110 kV), pas technologiczny może sięgać ok. 20 m od osi - sprawdź rodzaj linii.' },
     gaz: { strefa: 5, waga: -5, dalej: 15,
-      opis: 'Strefa kontrolowana gazociągu może wchodzić na działkę — szerokość zależy od ciśnienia (od ok. 1 m dla niskiego do kilkunastu m dla wysokiego).',
-      opisDalej: 'Przy gazociągu wysokiego ciśnienia strefa kontrolowana może sięgać działki — sprawdź u operatora.' },
-    cieplo: { strefa: 2, waga: -2, opis: 'Sieć ciepłownicza tuż przy granicy — możliwa strefa ochronna.' }
+      opis: 'Strefa kontrolowana gazociągu może wchodzić na działkę - szerokość zależy od ciśnienia (od ok. 1 m dla niskiego do kilkunastu m dla wysokiego).',
+      opisDalej: 'Przy gazociągu wysokiego ciśnienia strefa kontrolowana może sięgać działki - sprawdź u operatora.' },
+    cieplo: { strefa: 2, waga: -2, opis: 'Sieć ciepłownicza tuż przy granicy - możliwa strefa ochronna.' }
   };
 
   var STREFY_POG = {
@@ -115,7 +117,7 @@
     document.body.classList.add('tryb-przykladu');
     var pasek = document.createElement('div');
     pasek.className = 'pasek-przykladu';
-    pasek.innerHTML = '<div class="pp-tekst"><strong>To jest przykładowy raport rozszerzony</strong> — dla działki w gminie Dopiewo. ' +
+    pasek.innerHTML = '<div class="pp-tekst"><strong>To jest przykładowy raport rozszerzony</strong> - dla działki w gminie Dopiewo. ' +
       'Tak samo wygląda raport dla Twojej działki.</div>' +
       '<div class="pp-akcje"><a href="index.html#kontakt" class="btn btn-gold">Zamów raport dla swojej działki</a>' +
       '<a href="index.html#haslo" class="btn">Mam hasło</a></div>';
@@ -142,7 +144,7 @@
     }
     pokazBramke(id, '');
   }
-  // Po powrocie z PayU powiadomienie moze dojsc z opoznieniem — pytamy kilka razy (co 3 s, do ~30 s)
+  // Po powrocie z PayU powiadomienie moze dojsc z opoznieniem - pytamy kilka razy (co 3 s, do ~30 s)
   function czekajNaPlatnosc(id, ext, proba) {
     window.GruntowoPlatnosc.sprawdz(id, ext).then(function (w) {
       if (w.oplacone) { otworzOplacony(id, ext); return; }
@@ -152,7 +154,7 @@
         return;
       }
       pokazBramke(id, w.status === 'CANCELED' ? 'Płatność została anulowana. Możesz spróbować ponownie.'
-        : 'Nie otrzymaliśmy jeszcze potwierdzenia płatności. Jeśli zapłaciłeś, odśwież stronę za minutę — dostęp otworzy się sam.');
+        : 'Nie otrzymaliśmy jeszcze potwierdzenia płatności. Jeśli zapłaciłeś, odśwież stronę za minutę - dostęp otworzy się sam.');
     }, function () {
       if (proba < 10) { setTimeout(function () { czekajNaPlatnosc(id, ext, proba + 1); }, 3000); return; }
       pokazBramke(id, 'Nie udało się połączyć z serwerem płatności. Odśwież stronę za chwilę.');
@@ -162,7 +164,7 @@
     document.body.classList.add('tryb-oplacony');
     var pasek = document.createElement('div');
     pasek.className = 'pasek-przykladu pasek-oplacony';
-    pasek.innerHTML = '<div class="pp-tekst"><strong>Dziękujemy — raport opłacony.</strong> Dostęp do raportu tej działki zostaje w tej przeglądarce. ' +
+    pasek.innerHTML = '<div class="pp-tekst"><strong>Dziękujemy - raport opłacony.</strong> Dostęp do raportu tej działki zostaje w tej przeglądarce. ' +
       'Numer zamówienia: <span class="mono">' + ext.slice(0, 8) + '</span></div>';
     var hero = document.querySelector('#report .rep-hero');
     if (hero) hero.parentNode.insertBefore(pasek, hero);
@@ -196,7 +198,7 @@
       var kup = document.createElement('div');
       kup.className = 'bramka-kup';
       kup.innerHTML = '<div class="bramka-albo"><span>albo</span></div>' +
-        '<button type="button" class="btn btn-gold bramka-kup-btn" data-kup-raport data-id="' + window.GruntowoPlatnosc.esc(id) + '">Kup raport dla tej działki — 69 zł</button>' +
+        '<button type="button" class="btn btn-gold bramka-kup-btn" data-kup-raport data-id="' + window.GruntowoPlatnosc.esc(id) + '">Kup raport dla tej działki - 69 zł</button>' +
         '<div class="znaczek-payu">' + '<span>Płatność obsługuje</span>' + window.GruntowoPlatnosc.logoPayU() + '</div>' +
         '<p class="bramka-kup-info">Działka ' + window.GruntowoPlatnosc.esc(id) + ' · BLIK, karta, przelew</p>';
       var alt = form.querySelector('.bramka-alt');
@@ -209,14 +211,14 @@
   // =====================================================================
   // 2. STAN + ZDARZENIA Z raport.js
   // =====================================================================
-  var ANALIZY = ['mpzp', 'pog', 'powodz', 'przyroda', 'media', 'teren', 'uzytki', 'otoczenie', 'ceny'];
+  var ANALIZY = ['mpzp', 'pog', 'powodz', 'przyroda', 'media', 'teren', 'uzytki', 'otoczenie', 'pozwolenia', 'ceny'];
   var stan = {};
   var geo = null;           // geometria dzialki (pierscienie lon/lat, 2180, punkty wewnetrzne)
-  var przebieg = 0;         // licznik "przebiegu" — po kliknieciu "Nowa dzialka" stare wyniki sa ignorowane
+  var przebieg = 0;         // licznik "przebiegu" - po kliknieciu "Nowa dzialka" stare wyniki sa ignorowane
 
   // Zapamietaj poczatkowa zawartosc dynamicznych kontenerow (do resetu przy nowej dzialce)
   var POCZATKOWE = {};
-  ['plan-szczegoly', 'przyroda-wynik', 'powodz-wynik', 'media-wynik', 'teren-karty', 'uzytki-wynik', 'droga-wynik', 'otoczenie-grid', 'k-mpzp', 'k-pog', 'k-wz']
+  ['plan-szczegoly', 'przyroda-wynik', 'powodz-wynik', 'media-wynik', 'teren-karty', 'uzytki-wynik', 'droga-wynik', 'otoczenie-grid', 'pozwolenia-wynik', 'k-mpzp', 'k-pog', 'k-wz']
     .forEach(function (id) { var el = $(id); if (el) POCZATKOWE[id] = el.innerHTML; });
 
   document.addEventListener('gruntowo:dzialka', function (e) {
@@ -229,7 +231,7 @@
     uruchomAnalizy(przebieg);
   });
   document.addEventListener('gruntowo:ceny', function (e) {
-    // Werdykt ocenia rynek gruntow NIEZABUDOWANYCH (domyslny tryb) — przelaczanie w sekcji cen go nie zmienia
+    // Werdykt ocenia rynek gruntow NIEZABUDOWANYCH (domyslny tryb) - przelaczanie w sekcji cen go nie zmienia
     if (e.detail && e.detail.rodzaj === 'niezabudowana') { stan.ceny = e.detail; przelicz(); }
     var wv = $('wycena-gora-val');
     if (wv && e.detail && !e.detail.liczba && !$('wycena-gora').classList.contains('gotowa')) {
@@ -251,11 +253,11 @@
 
   function uruchomAnalizy(nr) {
     FUNKCJE = { mpzp: analizaMPZP, pog: analizaPOG, uzytki: analizaUzytki, teren: analizaTeren, otoczenie: analizaOtoczenie,
-      media: analizaMedia, powodz: analizaPowodz, przyroda: analizaPrzyroda };
+      media: analizaMedia, powodz: analizaPowodz, przyroda: analizaPrzyroda, pozwolenia: analizaPozwolenia };
     // Lekkie zapytania od razu, ciezsze obrazy z opoznieniem (raport.js laduje wtedy swoje mapy)
-    var start = { mpzp: 0, pog: 300, uzytki: 600, teren: 900, otoczenie: 1200, media: 2500, powodz: 4000, przyroda: 5500 };
+    var start = { mpzp: 0, pog: 300, uzytki: 600, teren: 900, otoczenie: 1200, pozwolenia: 1800, media: 2500, powodz: 4000, przyroda: 5500 };
     Object.keys(start).forEach(function (k) { setTimeout(function () { wykonajAnalize(k, nr, 0); }, start[k]); });
-    // Ceny przychodza z raport.js; jesli backend milczy — po 45 s uznajemy brak danych
+    // Ceny przychodza z raport.js; jesli backend milczy - po 45 s uznajemy brak danych
     setTimeout(function () { if (nr === przebieg && !stan.ceny) { stan.ceny = { blad: 'brak odpowiedzi' }; przelicz(); } }, 45000);
   }
 
@@ -269,7 +271,7 @@
       stan[klucz] = wynik || {}; rysujSekcje(klucz); przelicz();
     }, function (err) {
       if (nr !== przebieg) return;
-      console.warn('Analiza ' + klucz + ' (proba ' + (proba + 1) + '):', err);
+      console.warn('Analiza ' + klucz + ' (próba ' + (proba + 1) + '):', err);
       if (err && err.niedostepne) { stan[klucz] = { niedostepne: true }; rysujSekcje(klucz); przelicz(); return; }
       if (proba === 0) { setTimeout(function () { wykonajAnalize(klucz, nr, 1); }, 6000); return; }
       stan[klucz] = { blad: (err && err.message) || String(err), klucz: klucz, ponawiane: proba < 2 };
@@ -313,7 +315,7 @@
   }
   function pobierzTekst(url, ms) { return pobierz(url, null, ms).then(function (r) { return r.text(); }); }
 
-  // GetFeatureInfo w EPSG:4326 (WMS 1.1.1: kolejnosc lon,lat) — maly kadr wokol punktu
+  // GetFeatureInfo w EPSG:4326 (WMS 1.1.1: kolejnosc lon,lat) - maly kadr wokol punktu
   function wmsFI(baza, warstwy, lon, lat, format) {
     var d = 0.0004;
     return baza + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&SRS=EPSG:4326' +
@@ -343,7 +345,7 @@
     pier.forEach(function (r) { r.forEach(function (xy) { bb[0] = Math.min(bb[0], xy[0]); bb[1] = Math.min(bb[1], xy[1]); bb[2] = Math.max(bb[2], xy[0]); bb[3] = Math.max(bb[3], xy[1]); }); });
     p2180.forEach(function (r) { r.forEach(function (xy) { bb2[0] = Math.min(bb2[0], xy[0]); bb2[1] = Math.min(bb2[1], xy[1]); bb2[2] = Math.max(bb2[2], xy[0]); bb2[3] = Math.max(bb2[3], xy[1]); }); });
 
-    // Siatka punktow wewnatrz dzialki (w lon/lat) — do zapytan punktowych
+    // Siatka punktow wewnatrz dzialki (w lon/lat) - do zapytan punktowych
     var siatka = [];
     var N = 7;
     for (var i = 0; i < N; i++) for (var j = 0; j < N; j++) {
@@ -351,7 +353,7 @@
       if (wPoligonie([lon, lat], pier)) siatka.push([lon, lat]);
     }
     var sr = [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2];
-    // Punkt wewnetrzny: srodek bbox, a gdy wypada poza dzialka (np. ksztalt L) — najblizszy punkt siatki
+    // Punkt wewnetrzny: srodek bbox, a gdy wypada poza dzialka (np. ksztalt L) - najblizszy punkt siatki
     var wew = sr;
     if (!wPoligonie(sr, pier) && siatka.length) {
       wew = siatka.slice().sort(function (a, b) {
@@ -373,8 +375,8 @@
     return w;
   }
 
-  // Pobiera obraz WMS przez fetch (CORS) — mozna go i pokazac, i przeanalizowac piksel po pikselu
-  // Pobiera obraz WMS; przy bledzie ponawia (po 2 s i 5 s) — uslugi panstwowe bywaja chwilowo zawodne
+  // Pobiera obraz WMS przez fetch (CORS) - mozna go i pokazac, i przeanalizowac piksel po pikselu
+  // Pobiera obraz WMS; przy bledzie ponawia (po 2 s i 5 s) - uslugi panstwowe bywaja chwilowo zawodne
   function pobierzObrazWMS(url, proba) {
     proba = proba || 0;
     return pobierzObrazWMSRaz(url).catch(function (e) {
@@ -387,7 +389,7 @@
     return pobierz(url, null, 25000).then(function (r) {
       var typ = r.headers.get('content-type') || '';
       return r.blob().then(function (blob) {
-        if (typ.indexOf('image') === -1) throw new Error('usluga zwrocila blad zamiast obrazu');
+        if (typ.indexOf('image') === -1) throw new Error('usługa zwróciła błąd zamiast obrazu');
         return (window.createImageBitmap ? createImageBitmap(blob) : Promise.reject(new Error('brak createImageBitmap')))
           .then(function (bmp) { return { blob: blob, bmp: bmp, url: URL.createObjectURL(blob) }; });
       });
@@ -481,7 +483,7 @@
 
   // ---- 4.1 MPZP (Krajowa Integracja MPZP) ----
   // Czeka na wynik zapytania wykonanego przez raport.js (window.gruntowoRaport[klucz] / zdarzenie).
-  // Gdy raport.js nie zdazy albo zglosi blad — zwraca null i analiza pyta usluge sama.
+  // Gdy raport.js nie zdazy albo zglosi blad - zwraca null i analiza pyta usluge sama.
   function wynikRaportu(klucz, ms) {
     return new Promise(function (ok) {
       var gr = window.gruntowoRaport || {};
@@ -495,7 +497,7 @@
   function analizaMPZP() {
     var s = geo.srodek;
     return wynikRaportu('mpzp', 45000).then(function (w) {
-      // raport.js laczy odpowiedz opisowa i pokrycie mapy — jego werdykt jest nadrzedny
+      // raport.js laczy odpowiedz opisowa i pokrycie mapy - jego werdykt jest nadrzedny
       if (w && w.status === 'jest') {
         var z = zbudujMPZP(w.html || '', w.pokrycie);
         // Rejestr Urbanistyczny: tytul planu i data, gdy usluga krajowa ich nie podala
@@ -503,7 +505,7 @@
         return z;
       }
       if (w && (w.status === 'brak' || w.status === 'nieznany')) return { status: w.status };
-      // raport.js nie zdazyl / blad — pytamy sami (tylko dane opisowe)
+      // raport.js nie zdazyl / blad - pytamy sami (tylko dane opisowe)
       return pobierzTekst(wmsFI(URL_KIMPZP, 'plany_granice,wektor-str', s[0], s[1], 'text/html'), 20000).then(function (html) {
         var tekst = tekstZHtml(html);
         if (tekst.length < 5) return { status: 'nieznany' };
@@ -588,20 +590,20 @@
     };
   }
 
-  // ---- 4.2 Plan ogolny gminy (POG) — usluga w EPSG:2180 ----
+  // ---- 4.2 Plan ogolny gminy (POG) - usluga w EPSG:2180 ----
   function analizaPOG() {
     return wynikRaportu('pog', 45000).then(function (w) {
-      if (!w || w.status === 'blad') throw new Error('usluga planow ogolnych nie odpowiedziala');
+      if (!w || w.status === 'blad') throw new Error('usługa planów ogólnych nie odpowiedziała');
       if (w.status !== 'jest') return { status: 'brak' };
       var r = { status: 'jest', kod: w.kod, nazwa: w.kod ? STREFY_POG[w.kod] : '', ouz: !!w.ouz };
-      // Rejestr Urbanistyczny podaje wskazniki strefy — przenosimy je do raportu
+      // Rejestr Urbanistyczny podaje wskazniki strefy - przenosimy je do raportu
       ['oznaczenie', 'nazwaStrefy', 'profilPodst', 'profilDod', 'wysokosc', 'zabudowa', 'pbc', 'intensywnosc', 'ozs', 'plan', 'link'].forEach(function (k) { if (w[k]) r[k] = w[k]; });
       return r;
     });
   }
 
   // ---- 4.3 Powodz (ISOK) ----
-  // UWAGA: domyslny styl warstwy NZ.Fluvial rysuje tylko KONTURY stref — do liczenia pokrycia
+  // UWAGA: domyslny styl warstwy NZ.Fluvial rysuje tylko KONTURY stref - do liczenia pokrycia
   // wysylamy wlasny styl (SLD_BODY) z pelnym wypelnieniem i osobnym kolorem dla kazdego scenariusza.
   var SCEN_POWODZ = [
     { p: '0.1', rgb: [0, 32, 128], opis: 'Q 10% (raz na 10 lat)', css: '#002080' },
@@ -656,7 +658,7 @@
       znakPowodz(wynik);
       return wynik;
     }).catch(function (e) {
-      // Obraz nie przyszedl (po ponowieniach) — sprawdzamy punktowo kilka miejsc na dzialce
+      // Obraz nie przyszedl (po ponowieniach) - sprawdzamy punktowo kilka miejsc na dzialce
       console.warn('ISOK mapa:', e);
       return powodzPunktowo();
     });
@@ -681,7 +683,7 @@
     });
   }
   function znakPowodz(w) {
-    if (!w.zagrozona) GruntowoMapy.znakWodny('map-powodz', 'Brak zagrożenia powodziowego', w.wPoblizu ? 'strefa zalewowa w pobliżu — widoczna na mapie' : 'wg map zagrożenia powodziowego ISOK', 'ok');
+    if (!w.zagrozona) GruntowoMapy.znakWodny('map-powodz', 'Brak zagrożenia powodziowego', w.wPoblizu ? 'strefa zalewowa w pobliżu - widoczna na mapie' : 'wg map zagrożenia powodziowego ISOK', 'ok');
     else GruntowoMapy.znakWodny('map-powodz', '');
   }
 
@@ -721,13 +723,13 @@
     ZespolyPrzyrodniczoKrajobrazowe: 'zespół przyrodniczo-krajobrazowy'
   };
 
-  // ---- 4.5 Media (KIUT) — analiza pikseli w EPSG:2180 ----
+  // ---- 4.5 Media (KIUT) - analiza pikseli w EPSG:2180 ----
   function analizaMedia() {
     var BUFOR = 80; // m wokol dzialki
     var b = geo.bbox2180;
     var x0 = b[0] - BUFOR, y0 = b[1] - BUFOR, x1 = b[2] + BUFOR, y1 = b[3] + BUFOR;
-    // UWAGA: KIUT rysuje przewody tylko przy duzym przyblizeniu (sprawdzone: 0,35 m/px — sieci sa,
-    // 0,43 m/px — pusto). Dlatego trzymamy 0,3 m/px i dla wiekszych dzialek skladamy obraz z kafelkow.
+    // UWAGA: KIUT rysuje przewody tylko przy duzym przyblizeniu (sprawdzone: 0,35 m/px - sieci sa,
+    // 0,43 m/px - pusto). Dlatego trzymamy 0,3 m/px i dla wiekszych dzialek skladamy obraz z kafelkow.
     var mpp = 0.3;
     var W = Math.max(50, Math.round((x1 - x0) / mpp)), H = Math.max(50, Math.round((y1 - y0) / mpp));
     if (W * H > 16e6) { var sk = Math.sqrt(W * H / 16e6); mpp *= sk; W = Math.round(W / sk); H = Math.round(H / sk); }
@@ -780,7 +782,7 @@
           }
         }
       }
-      // Pojedyncze piksele w dzialce to zwykle szum/wygladzanie — wymagamy kilku
+      // Pojedyncze piksele w dzialce to zwykle szum/wygladzanie - wymagamy kilku
       var progPrzez = Math.max(4, Math.round(2 / mpp));
       SIECI.forEach(function (s) {
         var w = wyn[s.klucz];
@@ -793,16 +795,16 @@
   }
 
   // Obraz KIUT: najpierw bezposrednio (1 proba), potem przez posrednika na LH (z ponowieniami).
-  // Gdy oba zawioda — blad "niedostepne" (bez ponawiania: to ograniczenie serwera powiatu, nie chwilowa awaria).
+  // Gdy oba zawioda - blad "niedostepne" (bez ponawiania: to ograniczenie serwera powiatu, nie chwilowa awaria).
   function obrazKIUT(url) {
     return pobierzObrazWMSRaz(url).catch(function () {
       if (!URL_KIUT_PROXY) throw bladNiedostepne();
       return pobierzObrazWMS(URL_KIUT_PROXY + '?' + url.split('?')[1]).catch(function () { throw bladNiedostepne(); });
     });
   }
-  function bladNiedostepne() { var e = new Error('serwer powiatu nie pozwala na analize'); e.niedostepne = true; return e; }
+  function bladNiedostepne() { var e = new Error('serwer powiatu nie pozwala na analizę'); e.niedostepne = true; return e; }
 
-  // ---- 4.6 Teren (NMT) — wysokosci w siatce punktow + spadek z plaszczyzny ----
+  // ---- 4.6 Teren (NMT) - wysokosci w siatce punktow + spadek z plaszczyzny ----
   function analizaTeren() {
     var pkt = geo.siatka.slice(0, 40).map(function (xy) { return GruntowoMapy.wgs84Do2180(xy[0], xy[1]); });
     // NMT GUGiK: x = northing, y = easting
@@ -812,7 +814,7 @@
         var v = s.trim().split(/\s+/).map(Number);
         return v.length >= 3 && !isNaN(v[2]) && v[2] > -100 ? { n: v[0], e: v[1], h: v[2] } : null;
       }).filter(Boolean);
-      if (!pomiary.length) throw new Error('brak wysokosci');
+      if (!pomiary.length) throw new Error('brak wysokości');
       var hs = pomiary.map(function (p) { return p.h; });
       var min = Math.min.apply(null, hs), max = Math.max.apply(null, hs);
       var sr = hs.reduce(function (a, b) { return a + b; }, 0) / hs.length;
@@ -857,7 +859,7 @@
         }
       });
       var lista = Object.keys(kody);
-      if (!lista.length) throw new Error('brak danych o uzytkach (powiat poza usluga lub brak warstwy uzytkow)');
+      if (!lista.length) throw new Error('brak danych o użytkach (powiat poza usługa lub brak warstwy użytków)');
       return { kody: lista, grupa: grupa, pole: pole, opis: lista.map(opisUzytku) };
     });
   }
@@ -921,7 +923,7 @@
           drogowe[id ? id[1] : 'dr' + ok] = 1;
         }
       });
-      if (!ok) throw new Error('EGiB nie odpowiedziala');
+      if (!ok) throw new Error('EGiB nie odpowiedziała');
       return { sprawdzone: ok, drogowe: Object.keys(drogowe) };
     });
   }
@@ -973,6 +975,40 @@
     });
   }
 
+  // Pozwolenia na budowe w promieniu 1 km (rejestr GUNB w naszej bazie, polozenie dzialek z ULDK).
+  // Gdy serwer jeszcze ustala polozenie czesci dzialek (pierwszy raport w okolicy) - pytamy ponownie.
+  function analizaPozwolenia() {
+    var s = geo.srodek, id = stan.dzialka && stan.dzialka.id;
+    var url = URL_POZWOLENIA + '?id=' + encodeURIComponent(id || '') + '&lon=' + s[0].toFixed(6) + '&lat=' + s[1].toFixed(6);
+    var nr = przebieg;
+    var pytaj = function (proba) {
+      return pobierz(url, null, 45000).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.stan === 'ok' && !d.kompletne && proba < 4 && nr === przebieg) {
+          return new Promise(function (ok) { setTimeout(ok, 1500); }).then(function () { return pytaj(proba + 1); });
+        }
+        return d;
+      });
+    };
+    return pytaj(0).then(function (d) {
+      if (!d || d.stan === 'blad') throw new Error((d && d.blad) || 'brak odpowiedzi');
+      return d;
+    });
+  }
+  var GRUPY_POZW = {
+    dom: { n: 'dom jednorodzinny', k: ['I'] },
+    mieszk: { n: 'budynek wielorodzinny', k: ['XIII'] },
+    uslugi: { n: 'usługi / handel', k: ['V', 'IX', 'X', 'XI', 'XII', 'XIV', 'XV', 'XVI', 'XVII', 'XX'] },
+    przem: { n: 'przemysł / magazyn', k: ['XVIII', 'XIX', 'XXII'] },
+    infra: { n: 'infrastruktura', k: ['IV', 'VII', 'VIII', 'XXI', 'XXIII', 'XXIV', 'XXV', 'XXVI', 'XXVII', 'XXVIII', 'XXIX', 'XXX'] }
+  };
+  function grupaPozw(kat) {
+    for (var g in GRUPY_POZW) if (GRUPY_POZW[g].k.indexOf(kat) >= 0) return g;
+    return 'inne';
+  }
+  var RODZAJ_POZW = ['budowa', 'rozbudowa', 'nadbudowa', 'odbudowa', 'rozbiórka', 'inne roboty'];
+  function wielka(t) { t = String(t || '').trim(); return t.charAt(0).toUpperCase() + t.slice(1); }
+  function dataPL(d) { return d ? d.slice(8, 10) + '.' + d.slice(5, 7) + '.' + d.slice(0, 4) : ''; }
+
   // =====================================================================
   // 5. CZYNNIKI -> WERDYKT
   //    typ: 'plus' | 'minus' | 'uwaga'; waga: wplyw na wynik (plus > 0, minus < 0, uwaga 0)
@@ -988,16 +1024,16 @@
     if (mp && mp.status === 'jest') {
       planJest = true;
       var pz = mp.przeznaczenie;
-      if (pz && pz.ocena === 'budowlane') dod('plus', 22, 'Obowiązuje MPZP — przeznaczenie: ' + pz.etykieta, 'Plan miejscowy przesądza o możliwości zabudowy — nie potrzeba decyzji WZ.' + (mp.symbol ? ' Symbol terenu: ' + mp.symbol + '.' : ''), 'KIMPZP');
-      else if (pz && pz.ocena === 'czesciowo') dod('plus', 10, 'Obowiązuje MPZP — przeznaczenie ' + pz.etykieta, 'Zabudowa możliwa w zakresie określonym planem (sprawdź dopuszczalne funkcje).', 'KIMPZP');
-      else if (pz && pz.ocena === 'niebudowlane') dod('minus', -25, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie przewiduje zabudowy mieszkaniowej ani usługowej — zmiana wymaga zmiany planu przez gminę.', 'KIMPZP');
+      if (pz && pz.ocena === 'budowlane') dod('plus', 22, 'Obowiązuje MPZP - przeznaczenie: ' + pz.etykieta, 'Plan miejscowy przesądza o możliwości zabudowy - nie potrzeba decyzji WZ.' + (mp.symbol ? ' Symbol terenu: ' + mp.symbol + '.' : ''), 'KIMPZP');
+      else if (pz && pz.ocena === 'czesciowo') dod('plus', 10, 'Obowiązuje MPZP - przeznaczenie ' + pz.etykieta, 'Zabudowa możliwa w zakresie określonym planem (sprawdź dopuszczalne funkcje).', 'KIMPZP');
+      else if (pz && pz.ocena === 'niebudowlane') dod('minus', -25, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie przewiduje zabudowy mieszkaniowej ani usługowej - zmiana wymaga zmiany planu przez gminę.', 'KIMPZP');
       else if (mp.pokrycie !== null && mp.pokrycie !== undefined && mp.pokrycie < 60) dod('plus', 4, 'MPZP obejmuje część działki (ok. ' + Math.round(mp.pokrycie) + '%)', 'Pozostała część może wymagać decyzji WZ. Przeznaczenie odczytaj z rysunku planu lub uchwały.', 'KIMPZP');
       else dod('plus', 8, 'Działka objęta obowiązującym MPZP', 'Jasne zasady zabudowy. Przeznaczenie odczytaj z uchwały lub wypisu i wyrysu z planu' + (mp.uchwala ? ' (uchwała ' + mp.uchwala + ')' : '') + '.', 'KIMPZP');
     } else if (mp && mp.status === 'brak') {
-      dod('minus', -10, 'Brak miejscowego planu (MPZP)', 'Zabudowa możliwa tylko na podstawie decyzji o warunkach zabudowy (WZ) — wynik zależy od sąsiedztwa i gminy.', 'KIMPZP');
+      dod('minus', -10, 'Brak miejscowego planu (MPZP)', 'Zabudowa możliwa tylko na podstawie decyzji o warunkach zabudowy (WZ) - wynik zależy od sąsiedztwa i gminy.', 'KIMPZP');
     }
     if (!planJest && mp && !mp.blad) {
-      dod('uwaga', 0, 'Sprawdź, czy wydano warunki zabudowy (WZ)', 'Decyzji WZ nie ma w rejestrach publicznych — ma ją właściciel lub urząd gminy. Zapytaj o jej treść i datę ważności.', '');
+      dod('uwaga', 0, 'Sprawdź, czy wydano warunki zabudowy (WZ)', 'Decyzji WZ nie ma w rejestrach publicznych - ma ją właściciel lub urząd gminy. Zapytaj o jej treść i datę ważności.', '');
     }
     if (mp && (mp.status === 'nieznany' || mp.blad)) {
       dod('uwaga', 0, 'Nie udało się automatycznie potwierdzić MPZP', 'Gmina nie przekazuje danych do usługi krajowej. Sprawdź w urzędzie lub w geoportalu gminy, czy działka jest objęta planem.', 'KIMPZP');
@@ -1008,11 +1044,11 @@
     if (pg && pg.status === 'jest') {
       if (pg.kod && /^(SW|SJ|SU|SH)$/.test(pg.kod)) dod('plus', planJest ? 4 : 10, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Kierunek zgodny z zabudową mieszkaniową/usługową.', 'POG');
       else if (pg.kod && /^(SZ|SP)$/.test(pg.kod)) dod('plus', 3, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Zabudowa możliwa w zakresie tej strefy.', 'POG');
-      else if (pg.kod) dod('minus', planJest ? -4 : -12, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Strefa nie przewiduje zabudowy mieszkaniowej — utrudnia nowy plan miejscowy i decyzje WZ.', 'POG');
+      else if (pg.kod) dod('minus', planJest ? -4 : -12, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Strefa nie przewiduje zabudowy mieszkaniowej - utrudnia nowy plan miejscowy i decyzje WZ.', 'POG');
       if (!planJest && pg.ouz) dod('plus', 6, 'Działka w obszarze uzupełnienia zabudowy (POG)', 'Po wejściu w życie planu ogólnego WZ można wydawać tylko w takich obszarach.', 'POG');
       else if (!planJest && pg.status === 'jest' && !pg.ouz && pg.kod) dod('minus', -6, 'Działka poza obszarem uzupełnienia zabudowy', 'Po wejściu w życie planu ogólnego uzyskanie WZ poza tym obszarem nie będzie możliwe.', 'POG');
     } else if (pg && pg.status === 'brak' && !planJest) {
-      dod('uwaga', 0, 'Gmina nie ma jeszcze planu ogólnego w usłudze krajowej', 'Po uchwaleniu POG decyzje WZ będą możliwe tylko w obszarach uzupełnienia zabudowy — warto sprawdzić projekt planu ogólnego w gminie.', 'POG');
+      dod('uwaga', 0, 'Gmina nie ma jeszcze planu ogólnego w usłudze krajowej', 'Po uchwaleniu POG decyzje WZ będą możliwe tylko w obszarach uzupełnienia zabudowy - warto sprawdzić projekt planu ogólnego w gminie.', 'POG');
     }
 
     // --- Powodz ---
@@ -1020,10 +1056,10 @@
     if (pw && !pw.blad) {
       var ileTxt = pw.metoda === 'mapa' && pw.procent > 0 ? ' (' + pw.procent.toLocaleString('pl-PL') + '% powierzchni)' : '';
       if (pw.zagrozona) {
-        if (pw.maxP >= 0.01 || !pw.maxP) dod('minus', -25, 'Działka w obszarze szczególnego zagrożenia powodzią' + ileTxt, 'Scenariusz Q 1% lub częstszy — obowiązują zakazy i ograniczenia zabudowy (Prawo wodne).', 'ISOK');
-        else dod('minus', -8, 'Działka w obszarze zagrożenia powodzią Q 0,2%' + ileTxt, 'Powódź raz na 500 lat lub zniszczenie wału — ryzyko do uwzględnienia przy projekcie i ubezpieczeniu.', 'ISOK');
+        if (pw.maxP >= 0.01 || !pw.maxP) dod('minus', -25, 'Działka w obszarze szczególnego zagrożenia powodzią' + ileTxt, 'Scenariusz Q 1% lub częstszy - obowiązują zakazy i ograniczenia zabudowy (Prawo wodne).', 'ISOK');
+        else dod('minus', -8, 'Działka w obszarze zagrożenia powodzią Q 0,2%' + ileTxt, 'Powódź raz na 500 lat lub zniszczenie wału - ryzyko do uwzględnienia przy projekcie i ubezpieczeniu.', 'ISOK');
       } else {
-        dod('plus', 6, 'Działka poza obszarami zagrożenia powodziowego', pw.wPoblizu ? 'Strefa zalewowa jest jednak w pobliżu — widoczna na mapie w sekcji 11.' : 'Brak stref zalewowych na mapach ISOK w okolicy działki.', 'ISOK');
+        dod('plus', 6, 'Działka poza obszarami zagrożenia powodziowego', pw.wPoblizu ? 'Strefa zalewowa jest jednak w pobliżu - widoczna na mapie w sekcji 11.' : 'Brak stref zalewowych na mapach ISOK w okolicy działki.', 'ISOK');
       }
     }
 
@@ -1035,9 +1071,9 @@
         var twarde = wDz.filter(function (f) { return /ParkiNarodowe|Rezerwaty/.test(f.typ); });
         var nazwy = wDz.map(function (f) { return (NAZWY_FORM[f.typ] || f.typ) + (f.nazwa ? ' „' + f.nazwa + '”' : ''); }).join(', ');
         if (twarde.length) dod('minus', -30, 'Działka w parku narodowym lub rezerwacie', nazwy, 'GDOŚ');
-        else dod('minus', -8, 'Działka w obszarze ochrony przyrody', (nazwy || 'forma ochrony przyrody') + ' — możliwe dodatkowe wymogi (np. ocena oddziaływania na środowisko, ograniczenia zabudowy).', 'GDOŚ');
+        else dod('minus', -8, 'Działka w obszarze ochrony przyrody', (nazwy || 'forma ochrony przyrody') + ' - możliwe dodatkowe wymogi (np. ocena oddziaływania na środowisko, ograniczenia zabudowy).', 'GDOŚ');
       } else {
-        dod('plus', 4, 'Brak form ochrony przyrody na działce', pr.wPoblizu ? 'Forma ochrony przyrody jest jednak w sąsiedztwie (sekcja 10).' : 'Natura 2000, parki, rezerwaty — brak w okolicy.', 'GDOŚ');
+        dod('plus', 4, 'Brak form ochrony przyrody na działce', pr.wPoblizu ? 'Forma ochrony przyrody jest jednak w sąsiedztwie (sekcja 10).' : 'Natura 2000, parki, rezerwaty - brak w okolicy.', 'GDOŚ');
       }
     }
 
@@ -1045,7 +1081,7 @@
     var md = stan.media;
     if (md && md.niedostepne) {
       dod('uwaga', 0, 'Sprawdź na mapie 07, jak biegną sieci względem działki',
-        'Dla tego powiatu automatyczna analiza sieci nie jest możliwa, ale przewody widać na mapie. Minus, jeśli sieć przechodzi przez działkę lub biegnie tuż przy granicy — np. linia napowietrzna średniego napięcia ma strefę ok. 7,5 m od osi, w której nie można budować. Plus, jeśli woda, prąd, gaz i kanalizacja są w drodze przy działce.', 'KIUT');
+        'Dla tego powiatu automatyczna analiza sieci nie jest możliwa, ale przewody widać na mapie. Minus, jeśli sieć przechodzi przez działkę lub biegnie tuż przy granicy - np. linia napowietrzna średniego napięcia ma strefę ok. 7,5 m od osi, w której nie można budować. Plus, jeśli woda, prąd, gaz i kanalizacja są w drodze przy działce.', 'KIUT');
     }
     if (md && !md.blad && !md.niedostepne) {
       if (md.brakDanych) {
@@ -1065,15 +1101,15 @@
         });
         var dostepne = SIECI.filter(function (s) { return /woda|kanal|gaz|elektro/.test(s.klucz) && S[s.klucz].minOdl !== null && S[s.klucz].minOdl <= 50; });
         if (dostepne.length) dod('plus', Math.min(10, 3 * dostepne.length), 'Media w zasięgu: ' + dostepne.map(function (s) { return s.nazwa.replace('elektroenergetyczna', 'prąd').replace('wodociągowa', 'woda').replace('kanalizacyjna', 'kanalizacja').replace('gazowa', 'gaz'); }).join(', '),
-          'Najbliższe przewody w odległości do 50 m od działki — ułatwia przyłączenie (potwierdź warunki u gestorów).', 'KIUT');
-        else dod('minus', -5, 'Brak sieci wod.-kan., gazu i prądu w promieniu 50 m', 'Przyłączenie może wymagać rozbudowy sieci — koszt i czas po stronie inwestora.', 'KIUT');
+          'Najbliższe przewody w odległości do 50 m od działki - ułatwia przyłączenie (potwierdź warunki u gestorów).', 'KIUT');
+        else dod('minus', -5, 'Brak sieci wod.-kan., gazu i prądu w promieniu 50 m', 'Przyłączenie może wymagać rozbudowy sieci - koszt i czas po stronie inwestora.', 'KIUT');
       }
     }
 
     // --- Teren ---
     var tr = stan.teren;
     if (tr && !tr.blad && tr.spadek !== null && tr.spadek !== undefined) {
-      if (tr.spadek > 10) dod('minus', -6, 'Duży spadek terenu (ok. ' + tr.spadek.toLocaleString('pl-PL') + '%)', 'Różnica wysokości ' + tr.roznica.toFixed(1).replace('.', ',') + ' m — droższe fundamenty, niwelacja, mury oporowe.', 'NMT');
+      if (tr.spadek > 10) dod('minus', -6, 'Duży spadek terenu (ok. ' + tr.spadek.toLocaleString('pl-PL') + '%)', 'Różnica wysokości ' + tr.roznica.toFixed(1).replace('.', ',') + ' m - droższe fundamenty, niwelacja, mury oporowe.', 'NMT');
       else if (tr.spadek > 5) dod('uwaga', 0, 'Umiarkowany spadek terenu (ok. ' + tr.spadek.toLocaleString('pl-PL') + '%)', 'Uwzględnij w projekcie (skarpy, odwodnienie).', 'NMT');
       else dod('plus', 3, 'Teren płaski (spadek ok. ' + tr.spadek.toLocaleString('pl-PL') + '%)', 'Różnica wysokości na działce ok. ' + tr.roznica.toFixed(1).replace('.', ',') + ' m.', 'NMT');
     }
@@ -1084,8 +1120,8 @@
       var wys = uz.opis.filter(function (o) { return o.wysokaKlasa; });
       var les = uz.opis.filter(function (o) { return o.kat === 'lesne'; });
       var bud = uz.opis.filter(function (o) { return o.kat === 'budowlane'; });
-      if (les.length) dod('minus', planJest ? -6 : -15, 'Na działce są grunty leśne (' + les.map(function (o) { return o.kod; }).join(', ') + ')', 'Zabudowa wymaga zmiany przeznaczenia (MPZP) i wyłączenia z produkcji leśnej — kosztowne i niepewne.', 'EGiB');
-      if (wys.length) dod('minus', -8, 'Grunty rolne wysokich klas (' + wys.map(function (o) { return o.kod; }).join(', ') + ')', 'Klasy I–III wymagają zgody na zmianę przeznaczenia i opłat za wyłączenie z produkcji rolnej (poza granicami miast).', 'EGiB');
+      if (les.length) dod('minus', planJest ? -6 : -15, 'Na działce są grunty leśne (' + les.map(function (o) { return o.kod; }).join(', ') + ')', 'Zabudowa wymaga zmiany przeznaczenia (MPZP) i wyłączenia z produkcji leśnej - kosztowne i niepewne.', 'EGiB');
+      if (wys.length) dod('minus', -8, 'Grunty rolne wysokich klas (' + wys.map(function (o) { return o.kod; }).join(', ') + ')', 'Klasy I-III wymagają zgody na zmianę przeznaczenia i opłat za wyłączenie z produkcji rolnej (poza granicami miast).', 'EGiB');
       if (bud.length && !les.length) dod('plus', 5, 'W ewidencji grunt budowlany/zurbanizowany (' + bud.map(function (o) { return o.kod; }).join(', ') + ')', 'Brak konieczności wyłączania gruntu z produkcji rolnej.', 'EGiB');
     }
 
@@ -1099,7 +1135,7 @@
           (drEGiB ? 'W ewidencji gruntów przy granicy jest działka drogowa (dr' + (/^\d/.test(eg.drogowe[0]) ? ': ' + eg.drogowe[0] : '') + ')' : 'Wg OpenStreetMap droga biegnie przy granicy działki') +
           '. Potwierdź w gminie, że to droga publiczna (a nie wewnętrzna/prywatna).', drEGiB ? 'EGiB' : 'OSM');
       } else {
-        // BRAK potwierdzonego dostepu do drogi publicznej — mocny minus i gorny limit oceny (do weryfikacji: sluzebnosc)
+        // BRAK potwierdzonego dostepu do drogi publicznej - mocny minus i gorny limit oceny (do weryfikacji: sluzebnosc)
         dod('minus', -18, 'Brak potwierdzonego dostępu do drogi publicznej',
           (ot.drogi.length ? 'Przy działce jest tylko droga dojazdowa/gruntowa, ' : 'Przy granicy działki nie ma drogi ') +
           (eg && eg.sprawdzone ? 'ani działki drogowej w ewidencji. ' : '(wg OpenStreetMap). ') +
@@ -1109,24 +1145,41 @@
       var p = ot.poi;
       var blisko1km = ['szkola', 'sklep', 'przystanek'].filter(function (k) { return p[k].length && p[k][0].odl <= 1000; });
       if (blisko1km.length >= 2) dod('plus', 4, 'Dobra infrastruktura w promieniu 1 km', blisko1km.map(function (k) { return { szkola: 'szkoła', sklep: 'sklep', przystanek: 'przystanek' }[k] + ' ' + odl(p[k][0].odl); }).join(' · '), 'OSM');
-      else if (!p.sklep.length && !p.szkola.length && !p.przystanek.length) dod('minus', -3, 'Słaba infrastruktura w promieniu 1,5 km', 'Brak szkoły, sklepu i przystanku w pobliżu — mniejszy popyt na zabudowę mieszkaniową.', 'OSM');
+      else if (!p.sklep.length && !p.szkola.length && !p.przystanek.length) dod('minus', -3, 'Słaba infrastruktura w promieniu 1,5 km', 'Brak szkoły, sklepu i przystanku w pobliżu - mniejszy popyt na zabudowę mieszkaniową.', 'OSM');
     }
 
-    if (ot && ot.blad) dod('uwaga', 0, 'Nie udało się sprawdzić dostępu do drogi', 'Serwer OpenStreetMap nie odpowiedział — potwierdź dostęp do drogi publicznej w gminie lub na mapie.', 'OSM');
+    if (ot && ot.blad) dod('uwaga', 0, 'Nie udało się sprawdzić dostępu do drogi', 'Serwer OpenStreetMap nie odpowiedział - potwierdź dostęp do drogi publicznej w gminie lub na mapie.', 'OSM');
 
     // --- Rynek (transakcje) ---
     var ce = stan.ceny;
     if (ce && !ce.blad) {
       var km = (ce.promien_m || 1500) / 1000;
-      if (!ce.rozszerzony && ce.liczba >= 5) dod('plus', 8, 'Aktywny rynek gruntów — ' + ce.liczba + ' transakcji w promieniu ' + String(km).replace('.', ',') + ' km', 'Łatwiejsza wycena i sprzedaż; mediana ' + m(ce.mediana_m2) + ' zł/m².', 'RCN');
+      if (!ce.rozszerzony && ce.liczba >= 5) dod('plus', 8, 'Aktywny rynek gruntów - ' + ce.liczba + ' transakcji w promieniu ' + String(km).replace('.', ',') + ' km', 'Łatwiejsza wycena i sprzedaż; mediana ' + m(ce.mediana_m2) + ' zł/m².', 'RCN');
       else if (ce.liczba >= 3 && km <= 3) dod('plus', 3, 'Transakcje porównawcze w okolicy (' + ce.liczba + ' w promieniu ' + String(km).replace('.', ',') + ' km)', 'Mediana ' + m(ce.mediana_m2) + ' zł/m².', 'RCN');
-      else dod('minus', -5, 'Mało transakcji gruntami w okolicy', 'Najbliższe porównania dopiero w promieniu ' + String(km).replace('.', ',') + ' km — wycena mniej pewna, sprzedaż może trwać dłużej.', 'RCN');
+      else dod('minus', -5, 'Mało transakcji gruntami w okolicy', 'Najbliższe porównania dopiero w promieniu ' + String(km).replace('.', ',') + ' km - wycena mniej pewna, sprzedaż może trwać dłużej.', 'RCN');
+    }
+
+    // --- Pozwolenia na budowe w okolicy ---
+    var pb = stan.pozwolenia;
+    if (pb && pb.stan === 'ok' && pb.lista) {
+      var nowe = pb.lista.filter(function (x) { return x.rodzaj === 0 && !x.wlasna; });
+      var mieszk = nowe.filter(function (x) { return x.kategoria === 'I' || x.kategoria === 'XIII'; });
+      var wielo = mieszk.filter(function (x) { return x.kategoria === 'XIII'; }).length;
+      var opisM = mieszk.length + ' pozwoleń na nowe budynki mieszkalne w promieniu 1 km w ostatnich 3 latach' + (wielo ? ' (w tym wielorodzinne: ' + wielo + ')' : '') + '.';
+      if (mieszk.length >= 10) dod('plus', 5, 'Okolica aktywnie się zabudowuje', opisM + ' Popyt na grunty budowlane w tym miejscu jest potwierdzony.', 'GUNB');
+      else if (mieszk.length >= 3) dod('plus', 3, 'Nowe budynki mieszkalne w okolicy', opisM, 'GUNB');
+      var przem = nowe.filter(function (x) { return grupaPozw(x.kategoria) === 'przem' && x.odl <= 500; });
+      if (przem.length) dod('uwaga', 0, 'Planowana inwestycja przemysłowa lub magazynowa w pobliżu (' + odl(przem[0].odl) + ')', wielka(przem[0].opis) + (przem.length > 1 ? ' · takich pozwoleń w promieniu 500 m: ' + przem.length : '') + '. Sprawdź, czy nie wpłynie na komfort zamieszkania (ruch ciężarówek, hałas).', 'GUNB');
+      var maszt = nowe.filter(function (x) { return x.kategoria === 'XXIX' && x.odl <= 300; });
+      if (maszt.length) dod('uwaga', 0, 'Planowany maszt lub wolnostojący komin w pobliżu (' + odl(maszt[0].odl) + ')', wielka(maszt[0].opis), 'GUNB');
+      var wlasne = pb.lista.filter(function (x) { return x.wlasna; });
+      if (wlasne.length) dod('uwaga', 0, 'Dla tej działki jest sprawa w rejestrze pozwoleń na budowę', wielka(wlasne[0].opis) + ' (' + (wlasne[0].data_decyzji ? 'decyzja ' + dataPL(wlasne[0].data_decyzji) : 'wniosek ' + dataPL(wlasne[0].data_wniosku)) + '). Zapytaj sprzedającego o projekt i decyzję - może przejść na kupującego.', 'GUNB');
     }
 
     // --- Ksztalt i powierzchnia ---
     var wy = stan.wymiary;
     if (wy && wy.szerokosc) {
-      if (wy.szerokosc < 16) dod('minus', -8, 'Wąska działka (ok. ' + wy.szerokosc + ' m szerokości)', 'Przy odległościach 3–4 m od granic zostaje mało miejsca na budynek; możliwe odstępstwa lub zabudowa w granicy.', 'ULDK');
+      if (wy.szerokosc < 16) dod('minus', -8, 'Wąska działka (ok. ' + wy.szerokosc + ' m szerokości)', 'Przy odległościach 3-4 m od granic zostaje mało miejsca na budynek; możliwe odstępstwa lub zabudowa w granicy.', 'ULDK');
       else if (wy.szerokosc < 20) dod('uwaga', 0, 'Działka dość wąska (ok. ' + wy.szerokosc + ' m)', 'Sprawdź, czy mieści planowany budynek z odległościami od granic.', 'ULDK');
     }
     if (pow && pow < 500) dod('minus', -4, 'Mała powierzchnia (' + m(pow) + ' m²)', 'Może nie spełniać minimalnej powierzchni działki budowlanej z planu/WZ.', 'ULDK');
@@ -1143,8 +1196,8 @@
   }
   function poziom(w) {
     if (w >= 70) return { klucz: 'wysoki', tytul: 'Działka o wysokim potencjale inwestycyjnym' };
-    if (w >= 55) return { klucz: 'sredni', tytul: 'Działka z potencjałem — kilka kwestii do potwierdzenia' };
-    if (w >= 40) return { klucz: 'niski', tytul: 'Potencjał ograniczony — istotne ryzyka do wyjaśnienia' };
+    if (w >= 55) return { klucz: 'sredni', tytul: 'Działka z potencjałem - kilka kwestii do potwierdzenia' };
+    if (w >= 40) return { klucz: 'niski', tytul: 'Potencjał ograniczony - istotne ryzyka do wyjaśnienia' };
     return { klucz: 'ryzyko', tytul: 'Wysokie ryzyko inwestycyjne' };
   }
 
@@ -1172,7 +1225,7 @@
       var slabe = minusy.slice(0, 2).map(function (x) { return male(x.tytul); });
       lead = (mocne.length ? 'Najmocniejsze strony: ' + mocne.join('; ') + '. ' : '') +
         (slabe.length ? 'Główne ryzyka: ' + slabe.join('; ') + '.' : (koniec ? 'Model nie wykrył istotnych ryzyk w danych publicznych.' : ''));
-      if (!lead) lead = 'Zbieramy dane z rejestrów — werdykt uzupełnia się na bieżąco.';
+      if (!lead) lead = 'Zbieramy dane z rejestrów - werdykt uzupełnia się na bieżąco.';
     }
 
     document.querySelectorAll('.werdykt').forEach(function (box) {
@@ -1195,17 +1248,17 @@
 
   function rekomendacja(pz, minusy, uwagi) {
     var wstep = {
-      wysoki: '<strong>Rekomendacja:</strong> dane publiczne nie wskazują poważnych przeszkód — działka jest dobrym kandydatem do dalszej analizy lub zakupu.',
+      wysoki: '<strong>Rekomendacja:</strong> dane publiczne nie wskazują poważnych przeszkód - działka jest dobrym kandydatem do dalszej analizy lub zakupu.',
       sredni: '<strong>Rekomendacja:</strong> działka ma potencjał, ale przed decyzją wyjaśnij punkty oznaczone jako minusy i do sprawdzenia.',
-      niski: '<strong>Rekomendacja:</strong> wykryte ograniczenia mogą istotnie wpłynąć na wartość i możliwość zabudowy — decyzję podejmij dopiero po ich wyjaśnieniu.',
-      ryzyko: '<strong>Rekomendacja:</strong> dane wskazują na poważne ograniczenia — zakup pod zabudowę jest ryzykowny bez indywidualnej analizy.'
+      niski: '<strong>Rekomendacja:</strong> wykryte ograniczenia mogą istotnie wpłynąć na wartość i możliwość zabudowy - decyzję podejmij dopiero po ich wyjaśnieniu.',
+      ryzyko: '<strong>Rekomendacja:</strong> dane wskazują na poważne ograniczenia - zakup pod zabudowę jest ryzykowny bez indywidualnej analizy.'
     }[pz.klucz];
     var kroki = [];
     var mp = stan.mpzp;
-    if (mp && mp.status === 'jest') kroki.push('Zamów w gminie wypis i wyrys z MPZP — potwierdzi przeznaczenie i parametry zabudowy.');
-    else kroki.push('Zapytaj właściciela o decyzję WZ; jeśli jej nie ma — złóż wniosek o WZ lub sprawdź projekt planu ogólnego gminy.');
+    if (mp && mp.status === 'jest') kroki.push('Zamów w gminie wypis i wyrys z MPZP - potwierdzi przeznaczenie i parametry zabudowy.');
+    else kroki.push('Zapytaj właściciela o decyzję WZ; jeśli jej nie ma - złóż wniosek o WZ lub sprawdź projekt planu ogólnego gminy.');
     if (minusy.some(function (x) { return x.zrodlo === 'KIUT'; })) kroki.push('Poproś gestorów sieci o warunki techniczne i informację o strefach ochronnych / możliwości przełożenia sieci.');
-    if (minusy.some(function (x) { return /OSM|EGiB/.test(x.zrodlo) && /drogi publicznej/.test(x.tytul); })) kroki.push('Potwierdź dostęp do drogi publicznej — sprawdź w księdze wieczystej (dział III), czy jest służebność drogowa, albo udział w drodze wewnętrznej.');
+    if (minusy.some(function (x) { return /OSM|EGiB/.test(x.zrodlo) && /drogi publicznej/.test(x.tytul); })) kroki.push('Potwierdź dostęp do drogi publicznej - sprawdź w księdze wieczystej (dział III), czy jest służebność drogowa, albo udział w drodze wewnętrznej.');
     kroki.push('Sprawdź księgę wieczystą: właściciel, hipoteki, służebności, roszczenia.');
     return wstep + '<ol>' + kroki.map(function (k) { return '<li>' + esc(k) + '</li>'; }).join('') + '</ol>';
   }
@@ -1235,11 +1288,11 @@
     if (klucz === 'mpzp' || klucz === 'pog') rysujPlanowanie();
     else if (klucz === 'powodz') {
       if (w.blad) { $('powodz-wynik').innerHTML = bladSekcji('Usługa ISOK (Wody Polskie) nie odpowiedziała.', w); return; }
-      var sc = (w.scenariusze || []).map(function (s) { return s.opis + (s.procent ? ' — ' + s.procent.toLocaleString('pl-PL') + '% działki' : ''); });
+      var sc = (w.scenariusze || []).map(function (s) { return s.opis + (s.procent ? ' - ' + s.procent.toLocaleString('pl-PL') + '% działki' : ''); });
       var legenda = '<div class="uzbr-legenda" style="margin-bottom:.75rem;">' + SCEN_POWODZ.slice(0, 3).map(function (x) { return '<span class="uzbr-item"><span class="uzbr-kolor" style="background:' + x.css + ';height:10px;"></span>' + x.opis + '</span>'; }).join('') + '</div>';
       $('powodz-wynik').innerHTML = legenda + (w.zagrozona
-        ? ocena('minus', 'Działka w obszarze zagrożenia powodziowego' + (w.metoda === 'mapa' && w.procent > 0 ? ' — ' + w.procent.toLocaleString('pl-PL') + '% powierzchni' : ''), sc.length ? 'Scenariusze: ' + sc.join('; ') : 'Szczegóły scenariusza na mapie powyżej.')
-        : ocena('plus', 'Działka poza obszarami zagrożenia powodziowego', w.wPoblizu ? 'Obszar zagrożenia jest w pobliżu działki — widoczny na mapie.' : 'Na mapach zagrożenia powodziowego brak stref w otoczeniu działki.'));
+        ? ocena('minus', 'Działka w obszarze zagrożenia powodziowego' + (w.metoda === 'mapa' && w.procent > 0 ? ' - ' + w.procent.toLocaleString('pl-PL') + '% powierzchni' : ''), sc.length ? 'Scenariusze: ' + sc.join('; ') : 'Szczegóły scenariusza na mapie powyżej.')
+        : ocena('plus', 'Działka poza obszarami zagrożenia powodziowego', w.wPoblizu ? 'Obszar zagrożenia jest w pobliżu działki - widoczny na mapie.' : 'Na mapach zagrożenia powodziowego brak stref w otoczeniu działki.'));
     } else if (klucz === 'przyroda') {
       if (w.blad) { $('przyroda-wynik').innerHTML = bladSekcji('Usługa GDOŚ nie odpowiedziała.', w); return; }
       var h = '';
@@ -1259,17 +1312,18 @@
       $('teren-karty').innerHTML =
         karta('Wysokość terenu', w.sr.toFixed(1).replace('.', ',') + ' m n.p.m.', 'średnia z ' + w.punktow + ' punktów na działce') +
         karta('Różnica wysokości', w.roznica.toFixed(1).replace('.', ',') + ' m', 'od ' + w.min.toFixed(1).replace('.', ',') + ' do ' + w.max.toFixed(1).replace('.', ',') + ' m') +
-        karta('Spadek terenu', sp === null ? '—' : sp.toLocaleString('pl-PL') + '%', 'nachylenie płaszczyzny dopasowanej do terenu', spPill, spK);
+        karta('Spadek terenu', sp === null ? '-' : sp.toLocaleString('pl-PL') + '%', 'nachylenie płaszczyzny dopasowanej do terenu', spPill, spK);
     } else if (klucz === 'uzytki') {
       if (w.blad) { $('uzytki-wynik').innerHTML = ocena('uwaga', 'Brak danych o użytkach dla tej działki', 'Powiat nie udostępnia warstwy użytków w usłudze krajowej. Sprawdź wypis z rejestru gruntów.'); return; }
       var ho = (w.opis || []).map(function (o) {
         var typ = o.kat === 'lesne' || o.wysokaKlasa ? 'minus' : o.kat === 'budowlane' ? 'plus' : 'uwaga';
-        var nota = o.kat === 'lesne' ? 'grunt leśny — zabudowa wymaga zmiany przeznaczenia' : o.wysokaKlasa ? 'wysoka klasa gleby — wyłączenie z produkcji rolnej wymaga zgody i opłat' :
-          o.kat === 'rolne' ? 'grunt rolny niższej klasy — wyłączenie z produkcji zwykle bez zgody ministra' : o.kat === 'budowlane' ? 'grunt budowlany / zurbanizowany' : '';
-        return ocena(typ, o.kod + ' — ' + o.nazwa, nota);
+        var nota = o.kat === 'lesne' ? 'grunt leśny - zabudowa wymaga zmiany przeznaczenia' : o.wysokaKlasa ? 'wysoka klasa gleby - wyłączenie z produkcji rolnej wymaga zgody i opłat' :
+          o.kat === 'rolne' ? 'grunt rolny niższej klasy - wyłączenie z produkcji zwykle bez zgody ministra' : o.kat === 'budowlane' ? 'grunt budowlany / zurbanizowany' : '';
+        return ocena(typ, o.kod + ' - ' + o.nazwa, nota);
       }).join('');
       $('uzytki-wynik').innerHTML = ho + (w.grupa ? '<p class="mapbox-cap" style="margin-top:.6rem;">Grupa rejestrowa: ' + esc(w.grupa) + (w.pole ? ' · pole w ewidencji: ' + esc(w.pole) + ' ha' : '') + ' · odczyt w punktach wewnątrz działki</p>' : '');
     } else if (klucz === 'otoczenie') rysujOtoczenie(w);
+    else if (klucz === 'pozwolenia') rysujPozwolenia(w);
   }
 
   function rysujPlanowanie() {
@@ -1288,7 +1342,7 @@
       if (pg.blad) ustawKarte('k-pog', 'brak odpowiedzi', 'pill-info', 'Nie udało się sprawdzić', 'usługa planów ogólnych nie odpowiedziała');
       else if (pg.status === 'jest') ustawKarte('k-pog', pg.oznaczenie || pg.kod || 'uchwalony', pg.kod && /^(SW|SJ|SU|SH)$/.test(pg.kod) ? 'pill-plus' : 'pill-warn',
         pg.kod ? 'Strefa ' + pg.nazwa : 'Plan ogólny obowiązuje', pg.ouz ? 'działka w obszarze uzupełnienia zabudowy' : 'poza obszarem uzupełnienia zabudowy');
-      else ustawKarte('k-pog', 'brak POG', 'pill-warn', 'Gmina bez planu ogólnego', 'w usłudze krajowej — sprawdź projekt w gminie');
+      else ustawKarte('k-pog', 'brak POG', 'pill-warn', 'Gmina bez planu ogólnego', 'w usłudze krajowej - sprawdź projekt w gminie');
     }
     var h = '';
     if (mp && mp.status === 'jest') {
@@ -1299,7 +1353,7 @@
     }
     // Wskazniki strefy planu ogolnego (z Rejestru Urbanistycznego)
     if (pg && pg.status === 'jest' && (pg.wysokosc || pg.zabudowa || pg.pbc)) {
-      h += ocena('uwaga', 'Plan ogólny — strefa ' + (pg.oznaczenie || pg.kod) + (pg.nazwaStrefy ? ' (' + pg.nazwaStrefy.toLowerCase() + ')' : ''),
+      h += ocena('uwaga', 'Plan ogólny - strefa ' + (pg.oznaczenie || pg.kod) + (pg.nazwaStrefy ? ' (' + pg.nazwaStrefy.toLowerCase() + ')' : ''),
         [pg.wysokosc ? 'maks. wysokość ' + pg.wysokosc : '', pg.zabudowa ? 'maks. zabudowa ' + pg.zabudowa : '', pg.pbc ? 'min. biologicznie czynna ' + pg.pbc : '',
          pg.intensywnosc ? 'intensywność do ' + pg.intensywnosc : ''].filter(Boolean).join(' · '));
       if (pg.profilPodst) h += '<p class="mapbox-cap">Profil podstawowy strefy: ' + esc(pg.profilPodst.toLowerCase()) + (pg.profilDod ? '. Profil dodatkowy: ' + esc(pg.profilDod.toLowerCase()) : '') + '.</p>';
@@ -1314,24 +1368,24 @@
     var box = $('plan-ustalenia'); if (!box || ustaleniaStart) return;
     var id = mp.ru && mp.ru.id;
     var pdf = !id && mp.link && /\.pdf(\?|$)/i.test(mp.link) ? mp.link : '';
-    if (!id && !pdf) return;          // brak dostepu do tresci uchwaly — zostaje link w sekcji wyzej
+    if (!id && !pdf) return;          // brak dostepu do tresci uchwaly - zostaje link w sekcji wyzej
     ustaleniaStart = true;
     var url = URL_USTALENIA + (id ? '?id=' + encodeURIComponent(id) : '?pdf=' + encodeURIComponent(pdf));
     var proby = 0;
     var czekaj = function () {
       box.innerHTML = '<div class="ust-czeka"><span class="ust-kropka"></span><div><strong>Czytamy uchwałę planu…</strong>' +
         '<p>Wyciągamy zapisy dla terenu działki (przeznaczenie, wysokość, powierzchnia zabudowy, dachy, minimalna działka). ' +
-        'Pierwsze przetworzenie planu trwa zwykle 1–3 minuty — kolejne raporty z tego planu mają je od razu.</p></div></div>';
+        'Pierwsze przetworzenie planu trwa zwykle 1-3 minuty - kolejne raporty z tego planu mają je od razu.</p></div></div>';
     };
     var pytaj = function () {
       fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
         if (d.stan === 'gotowe') { stan.ustalenia = d.wynik; rysujUstalenia(d.wynik, mp.symbol); return; }
         if (d.stan === 'w_toku' && ++proby < 45) { czekaj(); setTimeout(pytaj, 6000); return; }
         if (d.stan === 'wylaczone') { box.innerHTML = ''; return; }
-        box.innerHTML = '<p class="mapbox-cap">Nie udało się automatycznie odczytać zapisów planu' + (d.blad ? ' (' + esc(d.blad) + ')' : '') + ' — skorzystaj z linku do uchwały powyżej.</p>';
+        box.innerHTML = '<p class="mapbox-cap">Nie udało się automatycznie odczytać zapisów planu' + (d.blad ? ' (' + esc(d.blad) + ')' : '') + ' - skorzystaj z linku do uchwały powyżej.</p>';
       }).catch(function () {
         if (++proby < 45) setTimeout(pytaj, 8000);
-        else box.innerHTML = '<p class="mapbox-cap">Serwer nie odpowiedział — skorzystaj z linku do uchwały powyżej.</p>';
+        else box.innerHTML = '<p class="mapbox-cap">Serwer nie odpowiedział - skorzystaj z linku do uchwały powyżej.</p>';
       });
     };
     czekaj(); pytaj();
@@ -1346,28 +1400,29 @@
     var sym = normSymbol(symbol);
     var t = sym ? d.tereny.filter(function (x) { return normSymbol(x.symbol) === sym; })[0] : null;
     if (!t && sym) t = d.tereny.filter(function (x) { var n = normSymbol(x.symbol); return n && (n.indexOf(sym) > -1 || sym.indexOf(n) > -1); })[0];
-    var wiersz = function (k, v) { return v ? '<div class="legenda-row"><span>' + k + '</span><strong>' + esc(v) + '</strong></div>' : ''; };
+    var bezPauz = function (t) { return String(t).replace(/[\u2013\u2014]/g, '-'); };
+    var wiersz = function (k, v) { return v ? '<div class="legenda-row"><span>' + k + '</span><strong>' + esc(bezPauz(v)) + '</strong></div>' : ''; };
     var karta = function (x) {
       return wiersz('Przeznaczenie', x.przeznaczenie) + wiersz('Dopuszczalne', x.dopuszczalne) + wiersz('Wysokość', x.wysokosc) +
         wiersz('Powierzchnia zabudowy', x.powierzchnia_zabudowy) + wiersz('Biologicznie czynna', x.biologicznie_czynna) +
         wiersz('Intensywność', x.intensywnosc) + wiersz('Dach', x.dach) + wiersz('Min. działka', x.min_dzialka) +
         wiersz('Linie zabudowy', x.linie_zabudowy) + wiersz('Parkowanie', x.parkowanie) +
-        (x.inne && x.inne.length ? '<ul class="ust-inne">' + x.inne.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' : '');
+        (x.inne && x.inne.length ? '<ul class="ust-inne">' + x.inne.map(function (i) { return '<li>' + esc(bezPauz(i)) + '</li>'; }).join('') + '</ul>' : '');
     };
     var h = '<div class="legenda-title">Zapisy planu miejscowego' + (t ? ' dla terenu ' + esc(t.symbol) : '') + '</div><div class="legenda-body">';
     if (t) h += karta(t) + (t.paragraf ? '<p class="mapbox-cap">Źródło: ' + esc(t.paragraf) + ' uchwały' + (d.plan && d.plan.uchwala ? ' ' + esc(d.plan.uchwala) : '') + '.</p>' : '');
-    else h += '<p class="mapbox-cap">' + (sym ? 'Nie znaleźliśmy w uchwale terenu ' + esc(symbol) + '.' : 'Usługa krajowa nie podała symbolu terenu działki — odczytaj go z rysunku planu (mapa w sekcji 04), a zapisy znajdziesz poniżej.') + '</p>';
+    else h += '<p class="mapbox-cap">' + (sym ? 'Nie znaleźliśmy w uchwale terenu ' + esc(symbol) + '.' : 'Usługa krajowa nie podała symbolu terenu działki - odczytaj go z rysunku planu (mapa w sekcji 04), a zapisy znajdziesz poniżej.') + '</p>';
     var inne = d.tereny.filter(function (x) { return x !== t; });
     if (inne.length) h += '<details class="ust-wszystkie"><summary>' + (t ? 'Pozostałe tereny w planie' : 'Tereny w planie') + ' (' + inne.length + ')</summary>' +
-      inne.map(function (x) { return '<details class="ust-teren"><summary><strong>' + esc(x.symbol) + '</strong> — ' + esc(x.przeznaczenie || '') + '</summary>' + karta(x) + '</details>'; }).join('') + '</details>';
+      inne.map(function (x) { return '<details class="ust-teren"><summary><strong>' + esc(x.symbol) + '</strong> - ' + esc(bezPauz(x.przeznaczenie || '')) + '</summary>' + karta(x) + '</details>'; }).join('') + '</details>';
     if (d.plan && d.plan.ustalenia_ogolne && d.plan.ustalenia_ogolne.length) h += '<details class="ust-wszystkie"><summary>Ustalenia ogólne planu</summary><ul class="ust-inne">' +
-      d.plan.ustalenia_ogolne.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul></details>';
+      d.plan.ustalenia_ogolne.map(function (i) { return '<li>' + esc(bezPauz(i)) + '</li>'; }).join('') + '</ul></details>';
     h += '<p class="ust-uwaga">Zapisy odczytane automatycznie z treści uchwały (AI). Przed decyzją zakupową potwierdź je w wypisie i wyrysie z planu z urzędu gminy.' +
       (d.zrodlo && d.zrodlo.pdf ? ' <a href="' + esc(d.zrodlo.pdf) + '" target="_blank" rel="noopener">Treść uchwały →</a>' : '') + '</p></div>';
     box.innerHTML = h;
   }
 
-  // Wynik analizy sieci — pod mapa uzbrojenia (sekcja 07), bez dublowania mapy
+  // Wynik analizy sieci - pod mapa uzbrojenia (sekcja 07), bez dublowania mapy
   function rysujMedia(w) {
     var box = $('media-wynik'); if (!box) return;
     if (w.blad) { box.innerHTML = bladSekcji('Usługa uzbrojenia terenu (KIUT) nie odpowiedziała.', w); return; }
@@ -1375,7 +1430,7 @@
       box.innerHTML = '<div class="media-naglowek">Jak czytać mapę sieci</div>' +
         ocena('uwaga', 'Oceń przebieg sieci na mapie powyżej', 'Serwer tego powiatu pozwala wyświetlić sieci, ale nie udostępnia ich do automatycznej analizy. Zwróć uwagę na trzy rzeczy:') +
         ocena('minus', 'Sieć przechodzi przez działkę', 'Zwykle wymaga służebności przesyłu lub przełożenia; w pasie sieci nie wolno budować.') +
-        ocena('minus', 'Sieć biegnie tuż przy granicy', 'Linia napowietrzna średniego napięcia ma strefę ok. 7,5 m od osi, 110 kV — ok. 20 m; gazociąg ma strefę kontrolowaną. Strefa może wchodzić na działkę.') +
+        ocena('minus', 'Sieć biegnie tuż przy granicy', 'Linia napowietrzna średniego napięcia ma strefę ok. 7,5 m od osi, 110 kV - ok. 20 m; gazociąg ma strefę kontrolowaną. Strefa może wchodzić na działkę.') +
         ocena('plus', 'Sieci w drodze przy działce', 'Woda, kanalizacja, prąd i gaz w ulicy obok działki (do ok. 50 m) ułatwiają przyłączenie.');
       return;
     }
@@ -1401,17 +1456,17 @@
     if (w.drogi.length) {
       var d = w.drogi[0];
       var publ = !/^(service|track)$/.test(d.typ);
-      h += ocena(publ ? 'plus' : 'uwaga', 'Przy granicy działki: ' + (nazwyDrog[d.typ] || d.typ) + (d.nazwa ? ' — ' + d.nazwa : ''),
+      h += ocena(publ ? 'plus' : 'uwaga', 'Przy granicy działki: ' + (nazwyDrog[d.typ] || d.typ) + (d.nazwa ? ' - ' + d.nazwa : ''),
         (d.nawierzchnia ? 'nawierzchnia: ' + d.nawierzchnia + ' · ' : '') + (w.drogi.length > 1 ? 'dróg przy działce: ' + w.drogi.length + ' · ' : '') + 'status drogi potwierdź w gminie');
     }
     var drEG = w.egib && w.egib.sprawdzone && w.egib.drogowe.length;
     var osmPubl = w.drogi.some(function (x) { return !/^(service|track)$/.test(x.typ); });
     if (!w.drogi.length) h += ocena(drEG ? 'uwaga' : 'minus', 'Brak drogi przy granicy działki (wg OpenStreetMap)',
-      drEG ? 'Działka drogowa jest w ewidencji, ale na mapie nie ma drogi — może być nieurządzona (np. gruntowa).' : 'Sprawdź dostęp do drogi publicznej — bezpośredni lub przez służebność.');
+      drEG ? 'Działka drogowa jest w ewidencji, ale na mapie nie ma drogi - może być nieurządzona (np. gruntowa).' : 'Sprawdź dostęp do drogi publicznej - bezpośredni lub przez służebność.');
     if (w.egib && w.egib.sprawdzone) {
       if (drEG) h += ocena('plus', 'W ewidencji gruntów działka graniczy z działką drogową (dr)', w.egib.drogowe.filter(function (x) { return /^\d/.test(x); }).join(', ') || 'użytek „dr” przy granicy działki');
       else h += ocena(osmPubl ? 'uwaga' : 'minus', 'W ewidencji brak działki drogowej (dr) przy granicach działki',
-        osmPubl ? 'Ulica z mapy może leżeć na działce o innym użytku — upewnij się w gminie, że to droga publiczna.' : 'Dojazd do weryfikacji — służebność drogowa lub udział w drodze wewnętrznej (księga wieczysta, dział III).');
+        osmPubl ? 'Ulica z mapy może leżeć na działce o innym użytku - upewnij się w gminie, że to droga publiczna.' : 'Dojazd do weryfikacji - służebność drogowa lub udział w drodze wewnętrznej (księga wieczysta, dział III).');
     }
     $('droga-wynik').innerHTML = h;
     var kat = [['szkola', 'Szkoła'], ['przedszkole', 'Przedszkole'], ['sklep', 'Sklep spożywczy'], ['przystanek', 'Przystanek autobusowy'], ['kolej', 'Kolej / tramwaj'], ['zdrowie', 'Apteka / przychodnia']];
@@ -1420,6 +1475,64 @@
       return '<div class="ot-item"><div class="ot-k">' + k[1] + '</div><div class="ot-v">' + (l.length ? odl(l[0].odl) : '> 1,5 km') + '</div><div class="ot-n">' +
         (l.length ? esc(l[0].nazwa || 'najbliższy') + (l.length > 1 ? ' · w promieniu: ' + l.length : '') : 'brak w promieniu 1,5 km') + '</div></div>';
     }).join('');
+  }
+
+  function rysujPozwolenia(w) {
+    var el = $('pozwolenia-wynik'); if (!el) return;
+    var linkRWDZ = '<a href="' + URL_RWDZ + '" target="_blank" rel="noopener">wyszukiwarce GUNB</a>';
+    if (w.blad) { el.innerHTML = bladSekcji('Nasz serwer nie odpowiedział.', w); return; }
+    if (w.stan !== 'ok') { el.innerHTML = ocena('uwaga', 'Rejestr pozwoleń dla tego województwa jeszcze uzupełniamy', 'Na razie pozwolenia w okolicy sprawdzisz w wyszukiwarce GUNB (po adresie lub numerze działki).') + '<p class="mapbox-cap" style="margin-top:.6rem;">Wyszukiwarka rejestru RWDZ: <a href="' + URL_RWDZ + '" target="_blank" rel="noopener">wyszukiwarka.gunb.gov.pl</a></p>'; return; }
+    var lista = w.lista || [];
+    var nowe = lista.filter(function (x) { return x.rodzaj === 0; });
+    var ile = function (g) { return nowe.filter(function (x) { return grupaPozw(x.kategoria) === g; }).length; };
+    var od = dataPL(w.od).slice(3);
+    var karta = function (l, v, n) { return '<div class="scard"><div class="scard-top"><span class="scard-l">' + l + '</span></div><div class="scard-v">' + v + '</div><div class="scard-note">' + n + '</div></div>'; };
+    var h = '<div class="status-grid pozw-karty">' +
+      karta('Domy jednorodzinne', ile('dom'), 'nowe budynki od ' + od) +
+      karta('Budynki wielorodzinne', ile('mieszk'), 'nowe budynki od ' + od) +
+      karta('Usługi i handel', ile('uslugi'), 'nowe budynki od ' + od) +
+      karta('Przemysł i magazyny', ile('przem'), 'nowe budynki od ' + od) + '</div>';
+    var wlasne = lista.filter(function (x) { return x.wlasna; });
+    if (wlasne.length) h += ocena('uwaga', 'Dla tej działki jest sprawa w rejestrze pozwoleń', wielka(wlasne[0].opis) + ' · ' + (wlasne[0].data_decyzji ? 'decyzja z ' + dataPL(wlasne[0].data_decyzji) : 'wniosek z ' + dataPL(wlasne[0].data_wniosku)));
+    if (!lista.length) h += ocena('uwaga', 'Brak pozwoleń na budowę w promieniu 1 km od ' + od, 'Okolica w ostatnich latach się nie zabudowywała albo urząd nie przekazał danych do rejestru GUNB.');
+    else {
+      h += '<div class="pozw-uklad">' + mapkaPozwolen(lista, w.promien || 1000) + '<div class="pozw-lista-box">';
+      var wazne = lista.filter(function (x) { return x.rodzaj <= 3; });
+      var reszta = lista.filter(function (x) { return x.rodzaj > 3; });
+      var wiersz = function (x) {
+        var g = grupaPozw(x.kategoria);
+        var dt = x.data_decyzji ? dataPL(x.data_decyzji) : 'wniosek ' + dataPL(x.data_wniosku);
+        var gdzie = [x.ulica, x.inwestor].filter(Boolean).map(esc).join(' · ');
+        return '<li class="pozw-' + g + (x.wlasna ? ' pozw-wlasna' : '') + '"><span class="pozw-odl">' + (x.wlasna ? 'ta działka' : odl(x.odl)) + '</span>' +
+          '<div><strong>' + esc(wielka(x.opis || (GRUPY_POZW[g] ? GRUPY_POZW[g].n : 'obiekt budowlany'))) + '</strong>' +
+          '<small>' + (GRUPY_POZW[g] ? GRUPY_POZW[g].n : 'inne') + ' · ' + RODZAJ_POZW[x.rodzaj] + ' · ' + dt + (x.kubatura ? ' · ' + m(x.kubatura) + ' m³' : '') + (gdzie ? '<br>' + gdzie : '') + '</small></div></li>';
+      };
+      var pierwsze = wazne.slice(0, 10);
+      h += '<ul class="pozw-lista">' + (pierwsze.length ? pierwsze.map(wiersz).join('') : '<li class="pozw-pusto">brak nowych budynków i rozbudów - tylko przebudowy i roboty wewnątrz budynków</li>') + '</ul>';
+      var dalsze = wazne.slice(10).concat(reszta);
+      if (dalsze.length) h += '<details class="pozw-wiecej"><summary>Pokaż pozostałe (' + dalsze.length + ')' + (reszta.length ? ' - w tym przebudowy i instalacje' : '') + '</summary><ul class="pozw-lista">' + dalsze.map(wiersz).join('') + '</ul></details>';
+      h += '</div></div>';
+    }
+    h += '<p class="mapbox-cap" style="margin-top:.75rem;">Pozwolenia na budowę z rejestru GUNB (RWDZ) w promieniu ' + odl(w.promien || 1000) + ', wnioski i decyzje od ' + od + ' · bez sieci uzbrojenia i rozbiórek' +
+      (w.aktualnosc ? ' · stan rejestru: ' + dataPL(w.aktualnosc.slice(0, 10)) : '') + (w.bez_polozenia ? ' · ' + w.bez_polozenia + ' spraw bez ustalonego położenia' : '') + ' · szczegóły sprawy w ' + linkRWDZ + '</p>';
+    el.innerHTML = h;
+  }
+
+  // Szkic polozenia: dzialka w srodku, okregi 500 m i 1 km, kropki pozwolen (kolor = rodzaj obiektu)
+  function mapkaPozwolen(lista, R) {
+    var s = geo.srodek, S = 240, c = S / 2, sk = (c - 12) / R;
+    var kos = Math.cos(s[1] * Math.PI / 180);
+    var pkt = lista.slice().reverse().map(function (x) {
+      var dx = (x.lon - s[0]) * 111320 * kos, dy = (x.lat - s[1]) * 110574;
+      var cx = c + dx * sk, cy = c - dy * sk;
+      return '<circle class="pz-' + grupaPozw(x.kategoria) + (x.rodzaj > 3 ? ' pz-drobne' : '') + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (x.rodzaj === 0 ? 4.2 : 3) + '"><title>' + esc((x.opis || '') + ' - ' + odl(x.odl)) + '</title></circle>';
+    }).join('');
+    var leg = [['dom', 'domy'], ['mieszk', 'wielorodzinne'], ['uslugi', 'usługi'], ['przem', 'przemysł'], ['infra', 'infrastruktura']];
+    return '<figure class="pozw-mapka"><svg viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="Położenie pozwoleń względem działki">' +
+      '<circle class="pz-krag" cx="' + c + '" cy="' + c + '" r="' + (R * sk).toFixed(1) + '"/><circle class="pz-krag" cx="' + c + '" cy="' + c + '" r="' + (R * sk / 2).toFixed(1) + '"/>' +
+      '<text class="pz-opis" x="' + c + '" y="' + (c - R * sk / 2 - 3).toFixed(1) + '">500 m</text><text class="pz-opis" x="' + c + '" y="' + (c - R * sk - 3).toFixed(1) + '">1 km</text>' +
+      pkt + '<rect class="pz-dzialka" x="' + (c - 5) + '" y="' + (c - 5) + '" width="10" height="10"/><text class="pz-opis pz-n" x="' + (S - 10) + '" y="16">N ↑</text></svg>' +
+      '<figcaption>' + leg.map(function (l) { return '<span><i class="pz-' + l[0] + '"></i>' + l[1] + '</span>'; }).join('') + '</figcaption></figure>';
   }
 
   function rysujListeKontrolna() {
@@ -1433,18 +1546,18 @@
     var planJest = stan.mpzp && stan.mpzp.status === 'jest';
     var pozycje = [];
     var dod = function (tytul, opis, wazne) { pozycje.push({ t: tytul, o: opis, w: !!wazne }); };
-    if (planJest) dod('Wypis i wyrys z MPZP', 'Zamów w urzędzie gminy — potwierdza przeznaczenie, wskaźniki zabudowy, linie zabudowy i wysokość budynków.', true);
-    else dod('Decyzja o warunkach zabudowy (WZ)', 'Zapytaj właściciela, czy ma ważną decyzję WZ i dla jakiej inwestycji. Jeśli nie — sprawdź w gminie, czy WZ jest możliwe (sąsiedztwo, dostęp do drogi, media, plan ogólny).', true);
+    if (planJest) dod('Wypis i wyrys z MPZP', 'Zamów w urzędzie gminy - potwierdza przeznaczenie, wskaźniki zabudowy, linie zabudowy i wysokość budynków.', true);
+    else dod('Decyzja o warunkach zabudowy (WZ)', 'Zapytaj właściciela, czy ma ważną decyzję WZ i dla jakiej inwestycji. Jeśli nie - sprawdź w gminie, czy WZ jest możliwe (sąsiedztwo, dostęp do drogi, media, plan ogólny).', true);
     dod('Księga wieczysta', 'Sprawdź dział II (właściciel), III (służebności, roszczenia, ograniczenia) i IV (hipoteki) w Elektronicznych Księgach Wieczystych.', true);
     dod('Wypis z rejestru gruntów i mapa ewidencyjna', 'Potwierdzi powierzchnię, użytki i klasy gleb, a także przebieg granic.');
     var kolizja = stan.media && stan.media.sieci && SIECI.some(function (s) { return stan.media.sieci[s.klucz].przez; });
-    dod('Warunki przyłączenia mediów', 'Wystąp do gestorów (prąd, woda, kanalizacja, gaz) o warunki techniczne — potwierdzą możliwość i koszt przyłączenia.' + (kolizja ? ' Zapytaj też o strefy ochronne i możliwość przełożenia sieci przechodzącej przez działkę.' : ''), kolizja);
+    dod('Warunki przyłączenia mediów', 'Wystąp do gestorów (prąd, woda, kanalizacja, gaz) o warunki techniczne - potwierdzą możliwość i koszt przyłączenia.' + (kolizja ? ' Zapytaj też o strefy ochronne i możliwość przełożenia sieci przechodzącej przez działkę.' : ''), kolizja);
     var bezDrogi = stan.otoczenie && !stan.otoczenie.blad && !stan.otoczenie.drogi.filter(function (x) { return !/^(service|track)$/.test(x.typ); }).length;
     dod('Dostęp do drogi publicznej', 'Bezpośredni zjazd z drogi publicznej albo służebność drogowa ustanowiona aktem notarialnym.' + (bezDrogi ? ' Model nie znalazł drogi publicznej przy granicy działki.' : ''), bezDrogi);
     if (stan.uzytki && stan.uzytki.opis && stan.uzytki.opis.some(function (o) { return o.wysokaKlasa || o.kat === 'lesne'; }))
-      dod('Wyłączenie gruntu z produkcji rolnej / leśnej', 'Dla gruntów klas I–III i gruntów leśnych potrzebna jest zgoda i opłaty — sprawdź w starostwie.', true);
+      dod('Wyłączenie gruntu z produkcji rolnej / leśnej', 'Dla gruntów klas I-III i gruntów leśnych potrzebna jest zgoda i opłaty - sprawdź w starostwie.', true);
     if (d.powierzchnia && d.powierzchnia >= 10000)
-      dod('Decyzja o środowiskowych uwarunkowaniach (DUŚ)', 'Przy większych inwestycjach (m.in. zabudowa mieszkaniowa na dużej powierzchni, zwłaszcza na obszarach chronionych) może być wymagana — progi zależą od powierzchni zabudowy i formy ochrony terenu.');
+      dod('Decyzja o środowiskowych uwarunkowaniach (DUŚ)', 'Przy większych inwestycjach (m.in. zabudowa mieszkaniowa na dużej powierzchni, zwłaszcza na obszarach chronionych) może być wymagana - progi zależą od powierzchni zabudowy i formy ochrony terenu.');
     dod('Osuwiska i warunki gruntowe', 'Sprawdź System Osłony Przeciwosuwiskowej (PIG-PIB) i zleć badania geotechniczne przed projektem.');
     dod('Ochrona konserwatorska', 'Zapytaj w gminie, czy działka nie jest w gminnej ewidencji zabytków lub strefie ochrony konserwatorskiej (zapisy także w MPZP).');
     dod('Stan faktyczny na miejscu', 'Wizja lokalna: ogrodzenia, zadrzewienia, rowy, słupy, sąsiedztwo uciążliwych obiektów.');
@@ -1454,7 +1567,7 @@
   // =====================================================================
   // 7. LISTA KONTROLNA DO PDF
   //    pdfmake (czcionka Roboto z polskimi znakami) ladowany dopiero po kliknieciu.
-  //    Gdy CDN nie odpowie — otwieramy wersje do druku (Drukuj -> Zapisz jako PDF).
+  //    Gdy CDN nie odpowie - otwieramy wersje do druku (Drukuj -> Zapisz jako PDF).
   // =====================================================================
   var PDFMAKE = [
     ['https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/pdfmake.min.js', 'https://cdn.jsdelivr.net/npm/pdfmake@0.2.10/build/vfs_fonts.js'],
@@ -1463,7 +1576,7 @@
   function zaladujSkrypt(src) {
     return new Promise(function (ok, nie) {
       var s = document.createElement('script');
-      s.src = src; s.onload = ok; s.onerror = function () { nie(new Error('nie zaladowano ' + src)); };
+      s.src = src; s.onload = ok; s.onerror = function () { nie(new Error('nie załadowano ' + src)); };
       document.head.appendChild(s);
     });
   }
@@ -1507,7 +1620,7 @@
         { text: 'Działka nr ' + n.nr + (n.lok ? ' · ' + n.lok : ''), fontSize: 10, color: '#333' },
         { text: 'Identyfikator: ' + n.id + (n.pow ? ' · powierzchnia: ' + n.pow : ''), fontSize: 9, color: '#666', margin: [0, 2, 0, 0] }
       ];
-      if (n.wynik && n.wynik !== '—') {
+      if (n.wynik && n.wynik !== '-') {
         tresc.push({ table: { widths: ['auto', '*'], body: [[
           { text: n.wynik + '/100', bold: true, fontSize: 14, color: ZLOTO, margin: [6, 4, 6, 4] },
           { text: 'Werdykt modelu: ' + n.werdykt, fontSize: 10, margin: [4, 7, 4, 4] }
@@ -1531,16 +1644,16 @@
       var dok = {
         pageSize: 'A4', pageMargins: [40, 40, 40, 50],
         defaultStyle: { font: 'Roboto', fontSize: 10, color: '#1a1a1a' },
-        info: { title: 'Lista kontrolna — działka ' + n.nr, author: 'gruntowo.pl' },
+        info: { title: 'Lista kontrolna - działka ' + n.nr, author: 'gruntowo.pl' },
         footer: function (str, ile) { return { text: 'gruntowo.pl · lista kontrolna · strona ' + str + ' z ' + ile, alignment: 'center', fontSize: 7, color: '#999', margin: [0, 20, 0, 0] }; },
         content: tresc
       };
       var nazwa = 'lista-kontrolna-dzialka-' + String(n.nr || 'gruntowo').replace(/[^\w\-]+/g, '_') + '.pdf';
       pdfMake.createPdf(dok).download(nazwa);
-      if (info) info.textContent = 'Gotowe — plik ' + nazwa + ' zapisany w Pobranych.';
+      if (info) info.textContent = 'Gotowe - plik ' + nazwa + ' zapisany w Pobranych.';
     }).catch(function (e) {
       console.warn('PDF:', e);
-      if (info) info.textContent = 'Otwieramy wersję do druku — wybierz „Zapisz jako PDF”.';
+      if (info) info.textContent = 'Otwieramy wersję do druku - wybierz „Zapisz jako PDF”.';
       listaDoDruku(n, poz);
     }).then(function () { if (btn) btn.disabled = false; });
   }
@@ -1548,8 +1661,8 @@
   // Zapas: okno z lista do druku (przegladarka zapisze je jako PDF)
   function listaDoDruku(n, poz) {
     var w = window.open('', '_blank');
-    if (!w) { alertInfo('Przeglądarka zablokowała nowe okno — zezwól na wyskakujące okna dla tej strony.'); return; }
-    var html = '<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>Lista kontrolna — działka ' + esc(n.nr) + '</title>' +
+    if (!w) { alertInfo('Przeglądarka zablokowała nowe okno - zezwól na wyskakujące okna dla tej strony.'); return; }
+    var html = '<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><title>Lista kontrolna - działka ' + esc(n.nr) + '</title>' +
       '<style>body{font-family:Arial,sans-serif;margin:32px;color:#1a1a1a}h1{font-size:22px;margin:14px 0 4px}.m{color:#666;font-size:12px}' +
       'li{list-style:none;margin:12px 0;padding-left:26px;position:relative;font-size:14px}li:before{content:"";position:absolute;left:0;top:2px;width:13px;height:13px;border:1.5px solid #b08d3e;border-radius:2px}' +
       'small{display:block;color:#444;font-size:12px;margin-top:2px}.w{color:#c0612b;font-size:10px;font-weight:bold;margin-left:6px}ul{padding:0}.s{font-size:10px;color:#888;margin-top:20px}</style></head><body>' +
@@ -1560,7 +1673,7 @@
     w.document.open(); w.document.write(html); w.document.close();
     setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 400);
   }
-  // "Pobierz caly raport (PDF)" w werdykcie koncowym — ten sam wydruk co przycisk u gory
+  // "Pobierz caly raport (PDF)" w werdykcie koncowym - ten sam wydruk co przycisk u gory
   document.addEventListener('click', function (e) {
     var r = e.target.closest && e.target.closest('[data-pdf-raport]');
     if (r) { e.preventDefault(); if (window.gruntowoDrukuj) window.gruntowoDrukuj(); else window.print(); }
