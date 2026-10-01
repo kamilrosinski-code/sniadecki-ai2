@@ -56,7 +56,7 @@
       'Nakładamy plan zagospodarowania (MPZP)...',
       'Sprawdzamy ceny transakcyjne w okolicy...',
       'Analizujemy uzbrojenie terenu i sieci...',
-      'Sprawdzamy formy ochrony przyrody i zabytki...',
+      'Sprawdzamy formy ochrony przyrody...',
       'Składamy raport w całość...'
     ];
     let i = 0;
@@ -1243,6 +1243,15 @@
   // Uslugi WMS maja CORS (odczyt wprost ze strony); szczegoly aktu (uchwala, PDF) - przez nasz serwer (plan-info.php).
   const URL_RU = 'https://rejestr-urbanistyczny.gov.pl/uslugi-sieciowe/';
   const URL_PLAN_INFO = 'https://sniadecki-development.pl/gruntowo-api/plan-info.php';
+  // MeSIP (metropolia poznanska): gminy, ktore publikuja plany tylko tam - [lon min, lat min, lon max, lat max]
+  const URL_MESIP = 'https://sniadecki-development.pl/gruntowo-api/mesip.php';
+  // + Poznan (SIP GEOPOZ: funkcje terenow wszystkich planow miasta)
+  const MESIP_OBSZARY = [[16.8340, 52.3172, 16.9108, 52.3606], [16.9570, 52.4442, 17.1050, 52.5690], [16.7300, 52.2900, 17.0750, 52.5100]];
+  function mesipPlan(lon, lat) {
+    if (!MESIP_OBSZARY.some(function (b) { return lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3]; })) return Promise.resolve(null);
+    return fetch(URL_MESIP + '?lon=' + lon.toFixed(6) + '&lat=' + lat.toFixed(6)).then(function (r) { return r.json(); })
+      .then(function (d) { return d && d.ok ? d : null; }).catch(function () { return null; });
+  }
   const RU_STREFY = ['SW', 'SJ', 'SZ', 'SU', 'SH', 'SP', 'SR', 'SI', 'SN', 'SC', 'SG', 'SO', 'SK'];
   const RU_POG_MAPA = ['APP.POG.PrawnieWiazacyLubRealizowany']
     .concat(RU_STREFY.map(function (k) { return 'APP.POG.' + k + '.PrawnieWiazacyLubRealizowany'; }))
@@ -1442,8 +1451,11 @@
     const mapa = pokrycieMPZP(bbox, wkt).catch(function () { return null; });
     // 3) Rejestr Urbanistyczny - oficjalny rejestr aktow (tytul, status, data, link do uchwaly)
     const rej = ruFI('wms-mpzp', RU_MPZP_FI, c.lon, c.lat).catch(function () { return null; });
+    // 4) MeSIP - gminy metropolii poznanskiej, ktore nie przekazaly planow do rejestrow krajowych (np. Lubon)
+    const ms = mesipPlan(c.lon, c.lat);
 
-    Promise.all([opis, mapa, rej]).then(function (w) {
+    Promise.all([opis, mapa, rej, ms]).then(function (w) {
+      const mesip = w[3];
       const html = w[0], pokrycie = w[1];     // pokrycie: % dzialki pod planem (null = nie udalo sie)
       const ruObj = w[2] || [];
       const ruPlan = ruObj.filter(function (o) { return /PrawnieWiazacy/.test(o.warstwa); })[0];
@@ -1459,12 +1471,12 @@
       const mapaJest = pokrycie !== null && pokrycie >= 5;
 
       let status;
-      if (opisJest || mapaJest || ru) status = 'jest';
+      if (opisJest || mapaJest || ru || mesip) status = 'jest';
       else if (html === null && pokrycie === null && w[2] === null) status = 'blad';
       else if (tekst.length >= 5 || pokrycie === 0) status = 'brak';
       else status = 'nieznany';
 
-      const wynik = { status: status, html: opisJest ? html : '', pokrycie: pokrycie, zrodlo: opisJest ? 'opis' : (mapaJest ? 'mapa' : (ru ? 'rejestr' : '')), ru: ru, projekt: ruProjekt };
+      const wynik = { status: status, html: opisJest ? html : '', pokrycie: pokrycie, zrodlo: opisJest ? 'opis' : (mapaJest ? 'mapa' : (ru ? 'rejestr' : (mesip ? 'mesip' : ''))), ru: ru, projekt: ruProjekt, mesip: mesip };
       window.gruntowoRaport.mpzp = wynik;
       oglos('gruntowo:mpzp', wynik);
       // Blok z Rejestru Urbanistycznego (uzupelniany o numer uchwaly i PDF z naszego serwera)
@@ -1503,6 +1515,8 @@
       if (dane.symbol || dane.uchwala || dane.link) {
         let h = '<div class="legenda-title">Zapisy planu dla działki</div><div class="legenda-body">';
         if (dane.symbol) h += '<div class="legenda-row"><span>Symbol / przeznaczenie</span><strong>' + dane.symbol + '</strong></div>';
+        else if (mesip && mesip.tereny && mesip.tereny.length) h += '<div class="legenda-row"><span>Symbol / przeznaczenie</span><strong>' + mesip.tereny.map(function (t) { return escH(t.symbol + (t.opis ? ' - ' + t.opis : '')); }).join('; ') + '</strong></div>' +
+          '<div class="legenda-row"><span>Źródło symbolu</span><strong>' + escH(mesip.zrodlo || 'geoportal gminy') + '</strong></div>';
         if (dane.uchwala) h += '<div class="legenda-row"><span>Uchwała</span><strong>' + dane.uchwala + '</strong></div>';
         if (dane.data) h += '<div class="legenda-row"><span>Data uchwalenia</span><strong>' + dane.data + '</strong></div>';
         if (nazwaPlanu) h += '<div class="legenda-row"><span>Plan</span><strong>' + nazwaPlanu.replace(/</g, '&lt;') + '</strong></div>';
@@ -1510,6 +1524,23 @@
           ? '<a class="legenda-link" href="' + dane.link + '" target="_blank" rel="noopener">Otwórz treść uchwały →</a>'
           : (ru ? '' : '<a class="legenda-link" href="https://rejestr-urbanistyczny.gov.pl/" target="_blank" rel="noopener">Znajdź plan i uchwałę w Rejestrze Urbanistycznym →</a>');
         h += blokRU + '</div>';
+        box.innerHTML = h;
+      } else if (mesip) {
+        const t0 = mesip.tereny[0], pl = mesip.plan || {};
+        let h = '<div class="legenda-title">Zapisy planu dla działki</div><div class="legenda-body">';
+        if (t0) h += '<div class="legenda-row"><span>Symbol / przeznaczenie</span><strong>' + escH(t0.symbol) + (t0.opis ? ' - ' + escH(t0.opis.toLowerCase()) : '') + '</strong></div>';
+        if (mesip.tereny.length > 1) h += '<div class="legenda-row"><span>Także na działce</span><strong>' + mesip.tereny.slice(1).map(function (t) { return escH(t.symbol + (t.opis ? ' - ' + t.opis.toLowerCase() : '')); }).join('; ') + '</strong></div>';
+        if (pl.uchwala || (t0 && t0.uchwala)) h += '<div class="legenda-row"><span>Uchwała</span><strong>' + escH(pl.uchwala || t0.uchwala) + '</strong></div>';
+        if (pl.z_dnia) h += '<div class="legenda-row"><span>Data uchwalenia</span><strong>' + escH(pl.z_dnia) + '</strong></div>';
+        if (pl.nazwa) h += '<div class="legenda-row"><span>Plan</span><strong>' + escH(pl.nazwa) + (pl.kod ? ' [' + escH(pl.kod) + ']' : '') + '</strong></div>';
+        if (mesip.w_opracowaniu) h += '<div class="legenda-row"><span>W opracowaniu</span><strong>' + escH(mesip.w_opracowaniu) + '</strong></div>';
+        if (mesip.zrodlo === 'MeSIP') {
+          h += '<a class="legenda-link" href="' + escH(mesip.portal) + '" target="_blank" rel="noopener">Plan w geoportalu MeSIP (rysunek, tekst uchwały) →</a>';
+          h += '<p class="legenda-ru-proj">' + escH(mesip.gmina) + ' publikuje plany w Metropolitalnym Systemie Informacji Przestrzennej (MeSIP), a nie w rejestrach krajowych.</p></div>';
+        } else {
+          h += '<a class="legenda-link" href="' + escH(pl.link || mesip.portal) + '" target="_blank" rel="noopener">Plan w Systemie Informacji Przestrzennej Poznania →</a>';
+          h += '<p class="legenda-ru-proj">Symbol terenu z SIP Poznania (GEOPOZ). Treść uchwały znajdziesz na stronie Miejskiej Pracowni Urbanistycznej.</p></div>';
+        }
         box.innerHTML = h;
       } else if (ru) {
         box.innerHTML = '<div class="legenda-title">Plan miejscowy dla działki</div><div class="legenda-body">' + blokRU +
