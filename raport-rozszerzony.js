@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261002h';
+  var RAPORT_JS = 'raport.js?v=20261002k';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -891,7 +891,14 @@
     var K = w.K, S = w.siatka, H = function (r, c) { var p = S[r * K + c]; return p ? p.h : null; };
     var wszystkie = S.filter(function (p) { return p.h !== null; }).map(function (p) { return p.h; });
     if (wszystkie.length < 4) return '';
-    var hMin = Math.min.apply(null, wszystkie), hMax = Math.max.apply(null, wszystkie), zakres = Math.max(hMax - hMin, 0.01);
+    // Skala kolorow i warstwic wg DZIALKI (otoczenie bywa duzo wyzsze/nizsze - np. skarpa obok - i "splaszcza" dzialke)
+    var naDz = S.filter(function (p) { return p.w && p.h !== null; }).map(function (p) { return p.h; });
+    if (naDz.length < 3) naDz = wszystkie;
+    var dMin = Math.min.apply(null, naDz), dMax = Math.max.apply(null, naDz);
+    var pad = Math.max(0.4, (dMax - dMin) * 0.25);
+    var hMin = dMin - pad, hMax = dMax + pad, zakres = Math.max(hMax - hMin, 0.01);
+    var oMin = Math.min.apply(null, wszystkie), oMax = Math.max.apply(null, wszystkie);
+    var tH = function (h) { return Math.max(0, Math.min(1, (h - hMin) / zakres)); };
     var W = 340, sk = W / w.bok, pol = w.bok / 2;
     var X = function (e) { return (e - (w.cE - pol)) * sk; }, Y = function (n) { return ((w.cN + pol) - n) * sk; };
     // kolory: siatka zageszczona 3x (interpolacja dwuliniowa) - gladkie przejscia zamiast kratki
@@ -902,11 +909,11 @@
       if (q.some(function (x) { return x === null; })) continue;
       var hv = q[0] * (1 - fu) * (1 - fv) + q[1] * fu * (1 - fv) + q[2] * (1 - fu) * fv + q[3] * fu * fv;
       var p0 = S[r0 * K + c0i];
-      kom += '<rect x="' + (X(p0.e) + (gc % G) * kr).toFixed(1) + '" y="' + (Y(p0.n) + (gr % G) * kr).toFixed(1) + '" width="' + (kr + 0.5).toFixed(1) + '" height="' + (kr + 0.5).toFixed(1) + '" fill="' + kolorH((hv - hMin) / zakres) + '"/>';
+      kom += '<rect x="' + (X(p0.e) + (gc % G) * kr).toFixed(1) + '" y="' + (Y(p0.n) + (gr % G) * kr).toFixed(1) + '" width="' + (kr + 0.5).toFixed(1) + '" height="' + (kr + 0.5).toFixed(1) + '" fill="' + kolorH(tH(hv)) + '"/>';
     }
     // warstwice (marching squares) co "co" metrow
     var kroki = [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10], co = kroki[kroki.length - 1];
-    for (var i = 0; i < kroki.length; i++) if (zakres / kroki[i] <= 12) { co = kroki[i]; break; }
+    for (var i = 0; i < kroki.length; i++) if (zakres / kroki[i] <= 8) { co = kroki[i]; break; }
     var linie = '';
     for (var lv = Math.ceil(hMin / co) * co; lv < hMax; lv += co) {
       var d = '';
@@ -947,8 +954,9 @@
       '<path class="tr-obrys" d="' + obrys + '"/>' + strz +
       '<g class="tr-pn"><text x="' + (W - 14) + '" y="18">N</text><path d="M' + (W - 14) + ',22l-4,10h8z"/></g>' +
       '<g class="tr-podz"><rect x="10" y="' + (W - 16) + '" width="' + (pd * sk).toFixed(1) + '" height="4"/><text x="10" y="' + (W - 20) + '">' + pd + ' m</text></g></svg>';
+    var otoczenie = (oMax - dMax > 2 || dMin - oMin > 2) ? ' · w otoczeniu (poza działką) teren od ' + liczbaPL(oMin) + ' do ' + liczbaPL(oMax) + ' m - kolory poza działką są przycięte do skali' : '';
     var legenda = '<div class="tr-legenda"><span>' + liczbaPL(hMin) + ' m</span><i style="background:linear-gradient(90deg,' + kolorH(0) + ',' + kolorH(0.5) + ',' + kolorH(1) + ')"></i><span>' + liczbaPL(hMax) + ' m n.p.m.</span></div>' +
-      '<p class="mapbox-cap">Warstwice co ' + liczbaPL(co, co < 1 ? 2 : 0).replace(/,?0+$/, '') + ' m' + (kier && w.spadek >= 0.5 ? ' · strzałka: kierunek spadku terenu' : ' · teren praktycznie płaski') + ' · działka w białym obrysie</p>';
+      '<p class="mapbox-cap">Warstwice co ' + liczbaPL(co, co < 1 ? 2 : 0).replace(/,?0+$/, '') + ' m' + (kier && w.spadek >= 0.5 ? ' · strzałka: kierunek spadku terenu' : ' · teren praktycznie płaski') + ' · działka w białym obrysie' + otoczenie + '</p>';
     return '<div class="teren-uklad"><figure class="teren-fig">' + mapa + legenda + '</figure>' + przekroj(w, c0) + '</div>';
   }
   // Przekroj terenu przez srodek dzialki wzdluz kierunku spadku (albo dluzszego boku, gdy plasko)
@@ -971,9 +979,17 @@
       if (h !== null) pr.push({ t: t + L, h: h, w: wPoligonie([n, e], geo.p2180) });
     }
     if (pr.length < 5) return '';
+    // przekroj: dzialka + ok. 30% jej dlugosci z kazdej strony (bez dalekiego otoczenia, ktore zaburza skale)
+    var iw = pr.map(function (p, i) { return p.w ? i : -1; }).filter(function (i) { return i >= 0; });
+    if (iw.length >= 2) {
+      var dl0 = pr[iw[iw.length - 1]].t - pr[iw[0]].t, zap = Math.max(dl0 * 0.3, 8);
+      var tA = pr[iw[0]].t - zap, tB = pr[iw[iw.length - 1]].t + zap;
+      pr = pr.filter(function (p) { return p.t >= tA && p.t <= tB; });
+    }
+    if (pr.length < 5) return '';
     var t0 = pr[0].t, tMax = pr[pr.length - 1].t - t0;
     var hs = pr.map(function (p) { return p.h; }), lo = Math.min.apply(null, hs), hi = Math.max.apply(null, hs);
-    var pad = Math.max((hi - lo) * 0.25, 0.5); lo -= pad; hi += pad;
+    var pad2 = Math.max((hi - lo) * 0.25, 0.5); lo -= pad2; hi += pad2;
     var W = 340, Hh = 200, ml = 44, mr = 10, mt = 14, mb = 30, pw = W - ml - mr, ph = Hh - mt - mb;
     var X = function (t) { return ml + (t - t0) / tMax * pw; }, Y = function (h) { return mt + (hi - h) / (hi - lo) * ph; };
     var linia = pr.map(function (p, i) { return (i ? 'L' : 'M') + X(p.t).toFixed(1) + ',' + Y(p.h).toFixed(1); }).join('');

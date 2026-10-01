@@ -28,6 +28,11 @@
         '#konsult-modal p{font-size:.88rem;color:#8a9a93;margin:0 0 1rem}#konsult-modal label{display:block;font-size:.78rem;color:#8a9a93;margin:.6rem 0 .25rem}' +
         '#konsult-modal input{width:100%;box-sizing:border-box;background:#1a1c17;border:1px solid #2a2c26;border-radius:8px;color:#f2f0eb;padding:.65rem .75rem;font:inherit}' +
         '#konsult-modal button[type=submit]{margin-top:1.1rem;width:100%;background:#c9a96e;color:#14181a;border:0;border-radius:8px;padding:.8rem;font-weight:600;font:inherit;cursor:pointer}' +
+        '#konsult-modal .km-mapa-btn{margin-top:.5rem;background:none;border:0;color:#c9a96e;font:inherit;font-size:.8rem;text-decoration:underline;cursor:pointer;padding:0}' +
+        '#konsult-modal .km-mapa{margin-top:.6rem;border:1px solid #2a2c26;border-radius:8px;overflow:hidden;flex-shrink:0}#konsult-modal .km-mapa-btn{flex-shrink:0}' +
+        '#konsult-modal .km-szukaj{display:flex;gap:.4rem;padding:.4rem}#konsult-modal .km-szukaj input{flex:1;min-width:0;width:auto}' +
+        '#konsult-modal .km-szukaj button{background:#c9a96e;color:#14181a;border:0;border-radius:6px;padding:0 .8rem;font:inherit;font-size:.8rem;cursor:pointer}' +
+        '#konsult-modal .km-mapa-el{height:260px}#konsult-modal .km-info{margin:0;padding:.45rem .6rem;font-size:.78rem;color:#8a9a93}#konsult-modal .km-info strong{color:#dfc090}' +
         '#konsult-modal .x{position:absolute;top:.6rem;right:.8rem;background:none;border:0;color:#8a9a93;font-size:1.6rem;cursor:pointer}#konsult-modal .msg{color:#ff9a7a;font-size:.85rem;min-height:1.2em;margin-top:.5rem}';
       document.head.appendChild(st);
       m = document.createElement('div'); m.id = 'konsult-modal';
@@ -38,10 +43,50 @@
         '<label>E-mail</label><input name="email" type="email" autocomplete="email" required>' +
         '<label>Telefon</label><input name="telefon" type="tel" autocomplete="tel">' +
         '<label>Numer działki lub adres (opcjonalnie)</label><input name="dzialka" placeholder="np. 302105_2.0009.222/8">' +
+        '<button type="button" class="km-mapa-btn">Nie znasz numeru? Wskaż działkę na mapie</button>' +
+        '<div class="km-mapa" hidden><div class="km-szukaj"><input type="text" placeholder="Miejscowość lub adres" autocomplete="off"><button type="button">Szukaj</button></div>' +
+        '<div class="km-mapa-el"></div><p class="km-info">Wyszukaj miejscowość, przybliż mapę i kliknij w działkę.</p></div>' +
         '<input name="strona_www" tabindex="-1" autocomplete="off" style="position:absolute;left:-5000px" aria-hidden="true">' +
         '<div class="msg" role="status"></div><button type="submit">Dalej - wybierz termin →</button></form>';
       document.body.appendChild(m);
       m.addEventListener('click', function (e) { if (e.target === m || e.target.classList.contains('x')) m.style.display = 'none'; });
+      // Wskazanie dzialki na mapie w okienku konsultacji (klik -> numer z ULDK do pola "dzialka")
+      let kmMapa = null, kmZnacznik = null;
+      m.querySelector('.km-mapa-btn').addEventListener('click', function () {
+        const box = m.querySelector('.km-mapa');
+        box.hidden = !box.hidden;
+        if (!box.hidden) setTimeout(function () { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60);
+        if (box.hidden || kmMapa) { if (kmMapa) setTimeout(function () { kmMapa.invalidateSize(); }, 50); return; }
+        const el = box.querySelector('.km-mapa-el'), info = box.querySelector('.km-info'), pole = m.querySelector('input[name=dzialka]');
+        if (typeof L === 'undefined') { el.innerHTML = '<p style="padding:1rem;font-size:.8rem;color:#8a9a93">Mapa chwilowo niedostępna - wpisz miejscowość i ulicę w polu powyżej.</p>'; return; }
+        kmMapa = L.map(el, { center: [52.40, 16.92], zoom: 11 });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(kmMapa);
+        L.tileLayer.wms('https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow', { layers: 'dzialki,numery_dzialek', format: 'image/png', transparent: true, minZoom: 16, maxZoom: 20 }).addTo(kmMapa);
+        const szukajPole = box.querySelector('.km-szukaj input');
+        const szukaj = function () {
+          const q = szukajPole.value.trim(); if (!q) return;
+          fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pl&q=' + encodeURIComponent(q), { headers: { 'Accept-Language': 'pl' } })
+            .then(function (r) { return r.json(); })
+            .then(function (w) { if (w && w.length) kmMapa.setView([+w[0].lat, +w[0].lon], 17); else info.textContent = 'Nie znaleźliśmy tego miejsca - wpisz samą miejscowość.'; })
+            .catch(function () { info.textContent = 'Wyszukiwarka chwilowo nie działa - przesuń mapę ręcznie.'; });
+        };
+        box.querySelector('.km-szukaj button').addEventListener('click', szukaj);
+        szukajPole.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); szukaj(); } });
+        kmMapa.on('click', function (e) {
+          if (kmMapa.getZoom() < 15) { kmMapa.setView(e.latlng, 17); info.textContent = 'Teraz kliknij w swoją działkę.'; return; }
+          if (kmZnacznik) kmZnacznik.remove();
+          kmZnacznik = L.marker(e.latlng).addTo(kmMapa);
+          info.textContent = 'Ustalamy numer działki…';
+          fetch(ULDK_PROXY + '?xy=' + encodeURIComponent(e.latlng.lng.toFixed(6) + ',' + e.latlng.lat.toFixed(6)))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d && d.id) { pole.value = d.id; info.innerHTML = 'Wybrana działka: <strong>' + d.id + '</strong>'; }
+              else { pole.value = e.latlng.lat.toFixed(6) + ', ' + e.latlng.lng.toFixed(6); info.textContent = 'Nie ustaliliśmy numeru - zapisaliśmy współrzędne punktu.'; }
+            })
+            .catch(function () { pole.value = e.latlng.lat.toFixed(6) + ', ' + e.latlng.lng.toFixed(6); info.textContent = 'Zapisaliśmy współrzędne punktu - numer ustalimy sami.'; });
+        });
+        setTimeout(function () { kmMapa.invalidateSize(); }, 80);
+      });
       m.querySelector('form').addEventListener('submit', function (e) {
         e.preventDefault();
         const f = e.target, msg = f.querySelector('.msg'), btn = f.querySelector('button[type=submit]');
