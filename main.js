@@ -93,11 +93,26 @@
         const v = function (n) { return f.elements[n].value.trim(); };
         if (!v('imie') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email'))) { msg.textContent = 'Podaj imię i poprawny e-mail.'; return; }
         btn.disabled = true; btn.textContent = 'Chwilka…';
+        // Kalendarz Zencal w NOWEJ karcie (otwarta od razu przy kliknieciu - inaczej przegladarka ja zablokuje);
+        // gruntowo.pl zostaje w tej karcie z podziekowaniem, wiec po rezerwacji klient wraca na strone
+        const okno = window.open('', '_blank');
+        if (okno) { try { okno.document.title = 'Wybór terminu - gruntowo.pl'; okno.document.body.innerHTML = '<p style="font:16px sans-serif;padding:2rem">Otwieramy kalendarz…</p>'; } catch (e2) {} }
         const dz = v('dzialka'), jestId = /^\d{6}_\d\./.test(dz);
         doCRM({ zrodlo: 'konsultacja', imie: v('imie'), email: v('email'), telefon: v('telefon'),
           dzialka: jestId ? dz : '', miejscowosc: jestId ? '' : dz, temat: 'Konsultacja z ekspertem - wybór terminu w Zencal',
           strona_www: v('strona_www'), strona: location.href })
-          .then(function () { window.location.href = ZENCAL_URL; });   // w Zencal i tak wybiera termin, nawet gdy CRM nie odpowie
+          .then(function () {   // w Zencal i tak wybiera termin, nawet gdy CRM nie odpowie
+            if (!okno || okno.closed) { window.location.href = ZENCAL_URL; return; }   // blokada okien - jak dawniej
+            okno.location.href = ZENCAL_URL;
+            f.innerHTML = '<button type="button" class="x" aria-label="Zamknij">×</button>' +
+              '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · 499 zł</div>' +
+              '<h3>Dziękujemy, ' + v('imie').split(' ')[0].replace(/[<>&"]/g, '') + '!</h3>' +
+              '<p>Kalendarz otworzył się w nowej karcie - wybierz tam dogodny termin. Po rezerwacji możesz zamknąć tamtą kartę i wrócić tutaj.</p>' +
+              '<p>Potwierdzenie spotkania przyjdzie na e-mail. Przed rozmową przygotujemy analizę Twojej działki.</p>' +
+              '<a href="' + ZENCAL_URL + '" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:1rem;background:#c9a96e;color:#14181a;border-radius:8px;padding:.8rem;font-weight:600;text-decoration:none">Otwórz kalendarz ponownie</a>' +
+              '<button type="button" class="km-wroc" style="display:block;width:100%;margin-top:.6rem;background:none;border:1px solid #2a2c26;border-radius:8px;color:#f2f0eb;padding:.7rem;font:inherit;cursor:pointer">Wróć na stronę</button>';
+            f.querySelector('.km-wroc').addEventListener('click', function () { m.style.display = 'none'; });
+          });
       });
     }
     m.style.display = 'flex';
@@ -120,6 +135,127 @@
       setTimeout(function () { const i = document.getElementById('s-miasto'); if (i && i.offsetParent) i.focus({ preventScroll: true }); }, 600);
     });
   });
+
+  // ===== HERO: film przewijany kolkiem; wyszukiwarka pojawia sie razem z przewijaniem =====
+  (function () {
+    const hero = document.querySelector('.hero');
+    const sb = document.getElementById('search-box');
+    if (!hero || !sb) return;
+    const bg = hero.querySelector('.hero-bg');
+    const malo = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mysz = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    let wysunieta = false, filmSteruje = false, wymusPelna = false;
+    const wysun = function () {
+      if (filmSteruje) { wymusPelna = true; return; }        // przy filmie wyszukiwarka idzie za kolkiem
+      if (wysunieta) return; wysunieta = true;
+      hero.classList.remove('hero-czeka'); sb.classList.add('wysuwa');
+    };
+    // Bez myszy (telefon), przy ograniczonym ruchu albo gdy ktos wchodzi z linku do wyszukiwarki - od razu
+    if (!mysz || malo || /#szukaj|#search-box/.test(location.hash)) { wysun(); }
+    else {
+      hero.classList.add('hero-czeka');
+      window.addEventListener('scroll', function () { if (window.scrollY > 40 && !filmSteruje) wysun(); }, { passive: true });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Tab') wysun(); });
+      document.querySelectorAll('[data-do-wyszukiwarki]').forEach(function (a) { a.addEventListener('click', wysun); });
+    }
+    if (!mysz || malo || !bg) return;
+
+    // Film hero: strona stoi w miejscu, a kolko myszy najpierw wysuwa wyszukiwarke i prowadzi kamere w pole;
+    // dopiero po dojechaniu do konca filmu strona przewija sie dalej. W gore - film cofa sie.
+    // Tylko komputer; telefon, oszczedzanie danych albo blad pobierania = zostaje zdjecie i zwykle przewijanie.
+    const film = bg.querySelector('.hero-film');
+    const oszczedza = navigator.connection && navigator.connection.saveData;
+    if (film && window.innerWidth >= 900 && !oszczedza && window.fetch && window.URL) {
+      fetch(film.canPlayType('video/mp4; codecs="avc1.42E01E"') ? 'hero-pole.mp4' : 'hero-pole.webm')
+        .then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) {
+        film.src = URL.createObjectURL(b);
+        film.addEventListener('loadeddata', function () {
+          const dl = film.duration || 11.7;
+          // Scena: hero przyklejone do gory ekranu przez dodatkowy odcinek przewijania
+          const scena = document.createElement('div');
+          scena.className = 'hero-scena';
+          hero.parentNode.insertBefore(scena, hero); scena.appendChild(hero);
+          hero.classList.add('hero-przyklejone');
+          let droga = 0, gora = 0;
+          const uloz = function () {
+            droga = Math.round(window.innerHeight * 1.2);            // ile przewijania hero stoi (lot nad polem)
+            const hH = hero.offsetHeight;
+            // wyszukiwarka ma byc w calosci widoczna, gdy hero stoi
+            const sbDol = sb.getBoundingClientRect().bottom - hero.getBoundingClientRect().top + 24;
+            gora = Math.min(0, window.innerHeight - Math.max(sbDol, Math.min(hH, window.innerHeight)));
+            hero.style.top = gora + 'px';
+            scena.style.height = (hH + droga) + 'px';
+          };
+          uloz(); window.addEventListener('resize', uloz);
+          if (window.ResizeObserver) new ResizeObserver(function () { uloz(); }).observe(hero);
+          let cel = 0, cur = 0, petla = null, szuka = false, sw = 0;
+          // Od teraz wyszukiwarka wyjezdza plynnie razem z filmem (kolko w dol), chowa sie przy powrocie na sama gore
+          filmSteruje = true;
+          // Film przenosimy na stala warstwe pod cala strona: gra za hero, za liczbami i za sekcja "Doswiadczenie...",
+          // a potem warstwa gasnie i zostaje czarne tlo
+          const warstwa = document.createElement('div'); warstwa.className = 'film-tlo'; warstwa.setAttribute('aria-hidden', 'true');
+          warstwa.appendChild(film);
+          const cien = document.createElement('div'); cien.className = 'hero-cien'; warstwa.appendChild(cien);
+          document.body.insertBefore(warstwa, document.body.firstChild);
+          const sekcja = document.querySelector('.sekcja-film');
+          const POLE = 0.5;                                          // pierwsza polowa filmu = lot nad polem (hero stoi)
+          if (wysunieta) { wymusPelna = true; }
+          hero.classList.remove('hero-czeka'); hero.classList.add('hero-sterowane'); sb.classList.remove('wysuwa');
+          const pokazSzukaj = function (o) {
+            sb.style.opacity = o.toFixed(3);
+            sb.style.transform = 'translateY(' + ((1 - o) * 46).toFixed(1) + 'px)';
+            sb.style.pointerEvents = o > 0.4 ? 'auto' : 'none';
+            hero.classList.toggle('szukaj-widac', o > 0.02);
+          };
+          const t0 = performance.now();
+          const zakres = function () {
+            const y0 = scena.offsetTop - gora, y1 = y0 + droga;                // hero stoi: y0..y1
+            const y2 = sekcja ? Math.max(y1 + 200, sekcja.offsetTop + sekcja.offsetHeight - window.innerHeight) : y1 + window.innerHeight;
+            return { y0: y0, y1: y1, y2: y2, y3: y2 + window.innerHeight * 0.7 };     // y2..y3: gasniecie do czerni
+          };
+          const postep = function () {
+            const z = zakres(), y = window.scrollY;
+            if (y <= z.y1) return Math.max(0, (y - z.y0) / droga) * POLE;
+            return POLE + (1 - POLE) * Math.min(1, (y - z.y1) / (z.y2 - z.y1));
+          };
+          const krok = function (now) {
+            const a = Math.min(1, (now - t0) / 2600);
+            const intro = 0.06 * (1 - Math.pow(1 - a, 3));             // kamera sama lekko rusza na wejsciu
+            const p = postep();
+            const ps = Math.max(0, Math.min(1, (window.scrollY - scena.offsetTop) / droga));   // od pierwszego ruchu kolkiem
+            sw += (ps - sw) * 0.14; if (Math.abs(ps - sw) < 0.0008) sw = ps;
+            pokazSzukaj(wymusPelna ? 1 : Math.max(0, Math.min(1, (sw - 0.01) / 0.15)));
+            cel = Math.max(intro, p);
+            cur += (cel - cur) * 0.1;
+            if (Math.abs(cel - cur) < 0.0008) cur = cel;
+            const t = Math.min(dl - 0.04, cur * dl);
+            // pod ziemia tekst lezy na ziarnistej glebie - przyciemniamy film, zeby napisy byly czytelne
+            const pz = Math.max(0, Math.min(1, (cur - 0.55) / 0.25));
+            const z = zakres(), y = window.scrollY;
+            // za tekstem sekcji "Doswiadczenie..." film mocniej przyciemniony
+            const ps2 = sekcja ? Math.max(0, Math.min(1, (y + window.innerHeight - sekcja.offsetTop) / (window.innerHeight * 0.8))) : 0;
+            cien.style.opacity = Math.max(0.45 * pz, 0.6 * ps2).toFixed(3);
+            warstwa.style.opacity = (1 - Math.max(0, Math.min(1, (y - z.y2) / (z.y3 - z.y2)))).toFixed(3);
+            if (!szuka && Math.abs(film.currentTime - t) > 1 / 48) { szuka = true; film.currentTime = t; }
+            if (cur === cel && sw === ps && a >= 1 && !szuka) { petla = null; return; }
+            petla = requestAnimationFrame(krok);
+          };
+          const budz = function () { if (!petla) petla = requestAnimationFrame(krok); };
+          film.addEventListener('seeked', function () { szuka = false; budz(); });
+          window.addEventListener('scroll', function () { if (window.scrollY < zakres().y3 + window.innerHeight) budz(); }, { passive: true });
+          film.currentTime = 0;
+          pokazSzukaj(wymusPelna ? 1 : 0);
+          film.classList.add('gotowy');
+          requestAnimationFrame(function () { warstwa.style.opacity = '1'; hero.classList.add('film-na-tle');
+            setTimeout(function () { warstwa.classList.add('widac'); }, 950); });
+          budz();
+        }, { once: true });
+      }).catch(function () { /* zostaje zdjecie */ });
+    }
+
+    // Tlo w osobnej warstwie (pod filmem); bez zblizenia za kursorem
+    hero.classList.add('hero-ruch');
+  })();
 
   // Pośrednik ULDK - ustala identyfikator działki z współrzędnych pinezki (ten sam co w raport.js)
   const ULDK_PROXY = 'https://script.google.com/macros/s/AKfycbzMevjlU6LD5YKp37spIFdNf8lEfkUWL03PuK8N2Ey8HqBBjBiPgvJASVGQP1yLp_Tf/exec';
@@ -240,10 +376,14 @@
         zoomControl: true,
         attributionControl: true
       });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap'
       }).addTo(leafletMap);
+      // Te same przelaczniki co w mapie raportu: ortofotomapa GUGiK i granice dzialek (KIEG, od duzego przyblizenia)
+      const orto = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution', { layers: 'Raster', format: 'image/jpeg', maxZoom: 20, attribution: 'GUGiK' });
+      const dzialki = L.tileLayer.wms('https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow', { layers: 'dzialki,numery_dzialek', format: 'image/png', transparent: true, minZoom: 16, maxZoom: 20 }).addTo(leafletMap);
+      L.control.layers({ 'Mapa': osm, 'Ortofotomapa': orto }, { 'Granice działek': dzialki }, { collapsed: false }).addTo(leafletMap);
 
       // Zapisuj współrzędne środka przy każdym przesunięciu mapy
       const aktualizujWsp = function () {
@@ -271,7 +411,7 @@
       .then(function (wyniki) {
         if (wyniki && wyniki.length) {
           const lat = parseFloat(wyniki[0].lat), lng = parseFloat(wyniki[0].lon);
-          leafletMap.setView([lat, lng], 15);
+          leafletMap.setView([lat, lng], 16);
         }
       })
       .catch(function () { /* zostaje domyślny widok */ })

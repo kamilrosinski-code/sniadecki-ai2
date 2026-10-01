@@ -70,8 +70,24 @@ address { font-style: normal; }
   );
   z-index: 0;
 }
-/* Usunięte: hero-bg i hero-overlay jako osobne divy */
-.hero-content { position: relative; z-index: 1; padding: 11rem 2rem 2rem; max-width: var(--mw); margin: 0 auto; width: 100%; }
+/* Hero dynamiczne: lekki najazd kamery za kursorem (main.js) */
+.hero { overflow: hidden; }
+.hero-bg { position: absolute; inset: 0; z-index: 0; background-image: url('hero.jpeg'); background-size: cover; background-position: center 40%; transform-origin: 50% 50%; will-change: transform; transition: transform 1.6s cubic-bezier(.2,.7,.2,1); pointer-events: none; }
+.hero.hero-ruch { background-image: none; }
+/* Film hero przewijany scrollem (tylko komputer) - zdjecie zostaje pod spodem jako tlo zapasowe */
+.hero-film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%; opacity: 0; transition: opacity .9s ease; pointer-events: none; }
+.hero-film.gotowy { opacity: 1; }
+@media (max-width: 899px), (prefers-reduced-motion: reduce) { .hero-film { display: none; } }
+.hero::before { z-index: 1; }
+.hero-content { z-index: 2; }
+/* Wyszukiwarka czeka, az uzytkownik chwile porusza kursorem (albo do kilku sekund) */
+.hero.hero-czeka .search-box { animation: none; opacity: 0; transform: translateY(40px); pointer-events: none; }
+.hero .search-box.wysuwa { animation: wysun .9s cubic-bezier(.2,.8,.2,1) forwards; pointer-events: auto; }
+@keyframes wysun { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+.hero-podpowiedz { position: relative; z-index: 2; margin-top: .4rem; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: rgba(242,240,235,.6); transition: opacity .5s ease; }
+.hero-podpowiedz::before { content: ''; display: inline-block; width: 26px; height: 1px; background: var(--gold); vertical-align: middle; margin-right: .7rem; }
+.hero:not(.hero-czeka) .hero-podpowiedz { opacity: 0; pointer-events: none; }
+.hero-content { position: relative; z-index: 2; padding: 11rem 2rem 2rem; max-width: var(--mw); margin: 0 auto; width: 100%; }
 .hero-stats { position: relative; z-index: 1; display: flex; align-items: center; padding: 1.5rem 2rem; background: rgba(11,12,10,0.80); backdrop-filter: blur(8px); border-top: 1px solid rgba(201,169,110,.2); margin-top: auto; max-width: 100%; }
 
 .hero-eyebrow { font-size: .7rem; font-weight: 500; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); margin-bottom: 1.25rem; opacity: 0; animation: fu .8s .1s ease forwards; }
@@ -243,6 +259,7 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
   .search-btn-gold { border-top-color: transparent; }
   .nav-burger { display: flex; }
 }
+@media (prefers-reduced-motion: reduce) { .hero-bg { transition: none; transform: none !important; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -581,3 +598,21 @@ form { display: flex; flex-direction: column; gap: 1.1rem; }
 .haslo-msg.haslo-blad { color:#e08a6a; }
 .haslo-msg.haslo-ok { color:#8fc4a2; }
 @media(max-width:760px){ .haslo-box { grid-template-columns:1fr; padding:1.4rem 1.25rem; } .haslo-row { flex-direction:column; } .haslo-row .btn-gold { justify-content:center; } }
+#leaflet-map .leaflet-control-layers { font-size: .75rem; color: #14181a; }
+#leaflet-map .leaflet-control-layers label { margin: .1rem 0; }
+/* Scena filmu hero: hero stoi przyklejone, az film dojedzie do konca (main.js) */
+.hero-scena { position: relative; }
+.hero.hero-przyklejone { position: sticky; top: 0; }
+/* Wyszukiwarka sterowana filmem (main.js): bez animacji wejscia, opacity/przesuniecie ustawia przewijanie */
+.hero.hero-sterowane .search-box { animation: none; transition: none; will-change: opacity, transform; }
+.hero.hero-sterowane:not(.szukaj-widac) .hero-podpowiedz { opacity: 1; }
+/* Film jako tlo za hero, liczbami i sekcja "Doswiadczenie..." (main.js, tylko komputer) */
+.film-tlo { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: #0b0c0a; opacity: 0; transition: opacity .9s ease; }
+.film-tlo.widac { transition: none; }
+.film-tlo .hero-film { opacity: 1; }
+.hero-cien { position: absolute; inset: 0; background: #0b0c0a; opacity: 0; pointer-events: none; }
+.hero.film-na-tle { background: none; }
+.hero.film-na-tle .hero-bg { opacity: 0; transition: opacity .9s ease; }
+.hero.film-na-tle::before { background: linear-gradient(to bottom, rgba(11,12,10,.30) 0%, rgba(11,12,10,.15) 20%, rgba(11,12,10,.40) 65%, rgba(11,12,10,.55) 100%); }
+.hero.film-na-tle .hero-stats { background: rgba(11,12,10,.45); }
+.sekcja-film { position: relative; }
