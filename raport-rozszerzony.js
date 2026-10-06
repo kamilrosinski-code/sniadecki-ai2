@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261002q';
+  var RAPORT_JS = 'raport.js?v=20261002r';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -39,6 +39,11 @@
   var URL_USTALENIA = 'https://sniadecki-development.pl/gruntowo-api/plan-ustalenia.php';
   var URL_POZWOLENIA = 'https://sniadecki-development.pl/gruntowo-api/pozwolenia.php';
   var URL_RWDZ = 'https://wyszukiwarka.gunb.gov.pl/';
+  // Token dostepu (dostep.php) dolaczany do zapytan o dane platne - bez niego serwer ich nie wyda
+  function zTokenem(url, id) {
+    var t = window.GruntowoHaslo && GruntowoHaslo.token ? GruntowoHaslo.token(id || '') : '';
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + encodeURIComponent(t);
+  }
   var URL_KIEG = 'https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow';
   var URL_NMT = 'https://services.gugik.gov.pl/nmt/';
   var URL_OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
@@ -123,7 +128,10 @@
       '<a href="index.html#haslo" class="btn">Mam hasło</a></div>';
     var hero = document.querySelector('#report .rep-hero');
     if (hero) hero.parentNode.insertBefore(pasek, hero);
-    otworzRaport();
+    // token dla dzialki przykladowej (serwer wydaje go tylko dla niej); raport otwieramy tak czy inaczej
+    var otworzPrzyklad = function () { otworzRaport(); };
+    if (window.GruntowoHaslo && GruntowoHaslo.tokenPrzykladu) GruntowoHaslo.tokenPrzykladu(PRZYKLAD_ID).then(otworzPrzyklad, otworzPrzyklad);
+    else otworzPrzyklad();
   } else {
     wybierzDostep();
   }
@@ -166,6 +174,15 @@
     });
   }
   function otworzOplacony(id, ext) {
+    // Dostep do danych platnych nadaje serwer: token dla tej dzialki na podstawie oplaconego zamowienia
+    if (window.GruntowoHaslo && GruntowoHaslo.tokenZamowienia && !otworzOplacony.token) {
+      zablokuj('Otwieramy raport…');
+      GruntowoHaslo.tokenZamowienia(id, ext).then(function (t) {
+        if (!t) { pokazBramke(id, 'Nie udało się potwierdzić dostępu do raportu. Odśwież stronę za chwilę.'); return; }
+        otworzOplacony.token = t; otworzOplacony(id, ext);
+      });
+      return;
+    }
     document.body.classList.add('tryb-oplacony');
     var pasek = document.createElement('div');
     pasek.className = 'pasek-przykladu pasek-oplacony';
@@ -811,7 +828,7 @@
   function obrazKIUT(url) {
     return pobierzObrazWMSRaz(url).catch(function () {
       if (!URL_KIUT_PROXY) throw bladNiedostepne();
-      return pobierzObrazWMS(URL_KIUT_PROXY + '?' + url.split('?')[1]).catch(function () { throw bladNiedostepne(); });
+      return pobierzObrazWMS(zTokenem(URL_KIUT_PROXY + '?' + url.split('?')[1], stan.dzialka && stan.dzialka.id)).catch(function () { throw bladNiedostepne(); });
     });
   }
   function bladNiedostepne() { var e = new Error('serwer powiatu nie pozwala na analizę'); e.niedostepne = true; return e; }
@@ -1154,7 +1171,7 @@
   // Gdy serwer jeszcze ustala polozenie czesci dzialek (pierwszy raport w okolicy) - pytamy ponownie.
   function analizaPozwolenia() {
     var s = geo.srodek, id = stan.dzialka && stan.dzialka.id;
-    var url = URL_POZWOLENIA + '?id=' + encodeURIComponent(id || '') + '&lon=' + s[0].toFixed(6) + '&lat=' + s[1].toFixed(6);
+    var url = zTokenem(URL_POZWOLENIA + '?id=' + encodeURIComponent(id || '') + '&lon=' + s[0].toFixed(6) + '&lat=' + s[1].toFixed(6), id);
     var nr = przebieg;
     var pytaj = function (proba) {
       return pobierz(url, null, 45000).then(function (r) { return r.json(); }).then(function (d) {
@@ -1165,7 +1182,7 @@
       });
     };
     return pytaj(0).then(function (d) {
-      if (!d || d.stan === 'blad') throw new Error((d && d.blad) || 'brak odpowiedzi');
+      if (!d || d.stan === 'blad' || d.stan === 'brak_dostepu') throw new Error((d && d.blad) || 'brak odpowiedzi');
       return d;
     });
   }
@@ -1550,7 +1567,7 @@
     var pdf = !id && mp.link && /\.pdf(\?|$)/i.test(mp.link) ? mp.link : '';
     if (!id && !pdf) return;          // brak dostepu do tresci uchwaly - zostaje link w sekcji wyzej
     ustaleniaStart = true;
-    var url = URL_USTALENIA + (id ? '?id=' + encodeURIComponent(id) : '?pdf=' + encodeURIComponent(pdf));
+    var url = zTokenem(URL_USTALENIA + (id ? '?id=' + encodeURIComponent(id) : '?pdf=' + encodeURIComponent(pdf)), stan.dzialka && stan.dzialka.id);
     var proby = 0;
     var czekaj = function () {
       box.innerHTML = '<div class="ust-czeka"><span class="ust-kropka"></span><div><strong>Czytamy uchwałę planu…</strong>' +
