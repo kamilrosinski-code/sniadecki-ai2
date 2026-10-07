@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261007k';
+  var RAPORT_JS = 'raport.js?v=20261007n';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -623,6 +623,8 @@
   function analizaPOG() {
     return wynikRaportu('pog', 45000).then(function (w) {
       if (!w || w.status === 'blad') throw new Error('usługa planów ogólnych nie odpowiedziała');
+      // projekt planu (jeszcze nie obowiazuje) - tylko do informacji, bez wplywu na ocene
+      if (w.status === 'projekt') return { status: 'projekt', kod: w.kod, nazwa: w.kod ? STREFY_POG[w.kod] : '', oznaczenie: w.oznaczenie, nazwaStrefy: w.nazwaStrefy, ouz: !!w.ouz, projekt: w.projekt };
       if (w.status !== 'jest') return { status: 'brak' };
       var r = { status: 'jest', kod: w.kod, nazwa: w.kod ? STREFY_POG[w.kod] : '', ouz: !!w.ouz };
       // Rejestr Urbanistyczny podaje wskazniki strefy - przenosimy je do raportu
@@ -1207,7 +1209,7 @@
   // =====================================================================
   // Przeznaczenie gruntu, ktore obniza wartosc: droga / zielen / las / wody (MPZP), strefa SN/SK planu
   // ogolnego (bez MPZP) albo dzialka drogowa (dr) w ewidencji. Zwraca { klasa, mnoznik, powod, zrodlo } albo null.
-  var MNOZNIK_KLASY = { droga: 0.15, zielen: 0.15, las: 0.2, wody: 0.1 };
+  var MNOZNIK_KLASY = { droga: 0.3, zielen: 0.3, las: 0.2, wody: 0.1 };
   var OPIS_KLASY = { droga: 'teren drogi', zielen: 'teren zieleni', las: 'teren lasu', wody: 'teren wód' };
   function klasaSymbolu(sym) { return window.GruntowoKlasaGruntu ? GruntowoKlasaGruntu(sym) : null; }
   function ocenaGruntu() {
@@ -1227,10 +1229,10 @@
       var kl = klasaSymbolu(sym);
       if (kl) return { klasa: kl, mnoznik: MNOZNIK_KLASY[kl], powod: OPIS_KLASY[kl] + ' w planie miejscowym (' + sym + ')', zrodlo: 'MPZP' };
     } else if (pg && pg.status === 'jest' && (pg.kod === 'SN' || pg.kod === 'SK') && (!mp || mp.status === 'brak')) {
-      return pg.kod === 'SN' ? { klasa: 'pog_zielen', mnoznik: 0.35, powod: 'strefa zieleni i rekreacji w planie ogólnym (SN), bez planu miejscowego', zrodlo: 'POG' }
-                             : { klasa: 'pog_droga', mnoznik: 0.25, powod: 'strefa komunikacyjna w planie ogólnym (SK), bez planu miejscowego', zrodlo: 'POG' };
+      return pg.kod === 'SN' ? { klasa: 'pog_zielen', mnoznik: 0.3, powod: 'strefa zieleni i rekreacji w planie ogólnym (SN), bez planu miejscowego', zrodlo: 'POG' }
+                             : { klasa: 'pog_droga', mnoznik: 0.3, powod: 'strefa komunikacyjna w planie ogólnym (SK), bez planu miejscowego', zrodlo: 'POG' };
     }
-    if (drEGiB) return { klasa: 'droga', mnoznik: planJest ? 0.35 : 0.2, powod: 'w ewidencji gruntów działka drogowa (dr)', zrodlo: 'EGiB' };
+    if (drEGiB) return { klasa: 'droga', mnoznik: planJest ? 0.4 : 0.3, powod: 'w ewidencji gruntów działka drogowa (dr)', zrodlo: 'EGiB' };
     return null;
   }
 
@@ -1577,6 +1579,8 @@
       if (pg.blad) ustawKarte('k-pog', 'brak odpowiedzi', 'pill-info', 'Nie udało się sprawdzić', 'usługa planów ogólnych nie odpowiedziała');
       else if (pg.status === 'jest') ustawKarte('k-pog', pg.oznaczenie || pg.kod || 'uchwalony', pg.kod && /^(SW|SJ|SU|SH)$/.test(pg.kod) ? 'pill-plus' : 'pill-warn',
         pg.kod ? 'Strefa ' + pg.nazwa : 'Plan ogólny obowiązuje', pg.ouz ? 'działka w obszarze uzupełnienia zabudowy' : 'poza obszarem uzupełnienia zabudowy');
+      else if (pg.status === 'projekt') ustawKarte('k-pog', 'projekt: ' + (pg.oznaczenie || pg.kod), 'pill-info',
+        'Projekt POG: ' + (pg.nazwaStrefy ? pg.nazwaStrefy.toLowerCase() : 'strefa ' + (pg.nazwa || pg.kod)), 'plan jeszcze nie obowiązuje - strefa może się zmienić' + (pg.ouz ? ' · w projekcie obszar uzupełnienia zabudowy' : ''));
       else ustawKarte('k-pog', 'brak POG', 'pill-warn', 'Gmina bez planu ogólnego', 'w usłudze krajowej - sprawdź projekt w gminie');
     }
     var h = '';

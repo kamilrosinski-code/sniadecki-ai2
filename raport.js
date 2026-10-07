@@ -369,10 +369,10 @@
   // (zwykle wykup przez gmine / odszkodowanie) - mnozymy wartosc i piszemy dlaczego.
   // Raport rozszerzony przekazuje wlasna, dokladniejsza ocene (z ewidencja i odczytem rysunku planu).
   const MNOZNIKI_GRUNTU = {
-    droga: [0.15, 'teren drogi w planie miejscowym (KD)'], zielen: [0.15, 'teren zieleni w planie miejscowym (Z)'],
+    droga: [0.3, 'teren drogi w planie miejscowym (KD)'], zielen: [0.3, 'teren zieleni w planie miejscowym (Z)'],
     las: [0.2, 'teren lasu w planie miejscowym (ZL)'], wody: [0.1, 'teren wód w planie miejscowym (W)'],
-    pog_zielen: [0.35, 'strefa zieleni i rekreacji w planie ogólnym (SN), bez planu miejscowego'],
-    pog_droga: [0.25, 'strefa komunikacyjna w planie ogólnym (SK), bez planu miejscowego']
+    pog_zielen: [0.3, 'strefa zieleni i rekreacji w planie ogólnym (SN), bez planu miejscowego'],
+    pog_droga: [0.3, 'strefa komunikacyjna w planie ogólnym (SK), bez planu miejscowego']
   };
   // Symbol terenu MPZP -> 'droga' | 'zielen' | 'las' | 'wody' | null (null = teren budowlany albo nieznany)
   function klasaGruntuZSymbolu(symbol) {
@@ -1480,7 +1480,13 @@
       const strefa = obj.filter(function (o) { return /^APP\.POG\.S[A-Z]{1,2}\./.test(o.warstwa); })[0];
       const projekt = obj.filter(function (o) { return /^APP\.POG\.(WTrakcie|WOpracowaniu)/.test(o.warstwa); })[0];
       if (!app && !strefa) {
-        if (projekt) { pogLegendaRU({ status: 'brak', zrodlo: 'ru', projekt: { tytul: ruPole(projekt.p, /^Tytu/), status: ruPole(projekt.p, /^Status/), link: ruPole(projekt.p, /^Link/) } }); return; }
+        if (projekt) {
+          const wp = { status: 'brak', zrodlo: 'ru', projekt: { tytul: ruPole(projekt.p, /^Tytu/), status: ruPole(projekt.p, /^Status/), link: ruPole(projekt.p, /^Link/) } };
+          // Projekt planu (np. Gdansk, Wroclaw): strefy projektu z API rejestru - tylko informacyjnie, NIE wplywaja na ocene i wartosc
+          const idProj = ruIdAktu(wp.projekt.link);
+          if (idProj) { strefyPOGzAPI(idProj, c, kadr, wh, wp); return; }
+          pogLegendaRU(wp); return;
+        }
         pobierzLegendePOGstara(bbox, wh); return;      // RU nic nie ma - pytamy stara usluge
       }
       const w = { status: 'jest', zrodlo: 'ru', kod: '', ouz: false, ozs: false };
@@ -1518,16 +1524,17 @@
     const url = URL_POG_STREFY + '?id=' + idPog + '&lon=' + c.lon.toFixed(6) + '&lat=' + c.lat.toFixed(6) + (kadr ? '&bbox=' + kadr.map(function (v) { return v.toFixed(6); }).join(',') : '');
     fetchZPonowieniem(url, 1).then(function (r) { return r.json(); }).then(function (d) {
       if (d && d.ok && d.strefa) {
+        if (w.projekt && w.status !== 'jest') w.status = 'projekt';
         w.oznaczenie = d.strefa.oznaczenie; w.kod = d.strefa.symbol; w.nazwaStrefy = ruMalymi(d.strefa.nazwa);
         if (d.ouz) { w.ouz = true; w.ouzOzn = d.ouzOzn || ''; }
         if (d.ozs) w.ozs = true;
         w.zrodloStref = 'api';
       }
-      if (d && d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c);
+      if (d && d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c, w.status === 'projekt' || (w.projekt && w.status !== 'jest'));
       pogLegendaRU(w);
     }).catch(function () { pogLegendaRU(w); });
   }
-  function rysujStrefyPOG(ksztalty, kadr, wh, strefaDzialki, c) {
+  function rysujStrefyPOG(ksztalty, kadr, wh, strefaDzialki, c, projekt) {
     const img = $('map-pog'); const box = img && img.parentElement; if (!box) return;
     const W = wh.W, H = wh.H;
     const px = function (p) { return [((p[0] - kadr[0]) / (kadr[2] - kadr[0])) * W, ((kadr[3] - p[1]) / (kadr[3] - kadr[1])) * H]; };
@@ -1553,13 +1560,28 @@
     svg.innerHTML = sciezki + napisy;
     box.appendChild(svg);
     const cap = box.nextElementSibling && box.nextElementSibling.classList.contains('mapbox-cap') ? box.nextElementSibling : null;
-    if (cap) cap.textContent = 'Strefy planu ogólnego gminy · Rejestr Urbanistyczny';
+    if (cap) cap.textContent = projekt ? 'PROJEKT planu ogólnego gminy (jeszcze nie obowiązuje) · Rejestr Urbanistyczny' : 'Strefy planu ogólnego gminy · Rejestr Urbanistyczny';
   }
 
   function pogLegendaRU(wynik) {
     const box = document.getElementById('pog-legenda');
     window.gruntowoRaport.pog = wynik;
     oglos('gruntowo:pog', wynik); przeliczKorekteWlasna();
+    if (wynik.status === 'projekt') {
+      znakWodny('map-pog', '');
+      if (!box) return;
+      const rp = function (k, v) { return v ? '<div class="legenda-row"><span>' + k + '</span><strong>' + escH(v) + '</strong></div>' : ''; };
+      let hp = '<div class="legenda-title">Projekt planu ogólnego - strefa planistyczna</div><div class="legenda-body">';
+      hp += '<div class="legenda-note"><strong>Plan ogólny jeszcze nie obowiązuje</strong> (' + escH(ruMalymi(wynik.projekt.status || 'w opracowaniu')) + '). Strefa pochodzi z projektu i może się zmienić do uchwalenia.</div>';
+      hp += rp('Strefa w projekcie', (wynik.oznaczenie || wynik.kod) + (wynik.nazwaStrefy ? ' - ' + wynik.nazwaStrefy.toLowerCase() : (wynik.kod && STREFY_POG[wynik.kod] ? ' - strefa ' + STREFY_POG[wynik.kod] : '')));
+      hp += rp('Obszar uzupełnienia zabudowy (projekt)', wynik.ouz ? 'tak' + (wynik.ouzOzn ? ' (' + wynik.ouzOzn + ')' : '') : 'nie');
+      if (wynik.ozs) hp += rp('Obszar zabudowy śródmiejskiej (projekt)', 'tak');
+      hp += rp('Projekt', ruMalymi(wynik.projekt.tytul));
+      if (wynik.projekt.link) hp += '<a class="legenda-link" href="' + escH(wynik.projekt.link) + '" target="_blank" rel="noopener">Zobacz projekt w Rejestrze Urbanistycznym →</a>';
+      box.innerHTML = hp + '</div>';
+      box.style.display = 'block';
+      return;
+    }
     if (wynik.status !== 'jest') {
       znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego - zweryfikować w gminie', 'brak');
       if (box && wynik.projekt) {
