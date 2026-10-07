@@ -37,6 +37,9 @@
         '#konsult-modal .km-szukaj{display:flex;gap:.4rem;padding:.4rem}#konsult-modal .km-szukaj input{flex:1;min-width:0;width:auto}' +
         '#konsult-modal .km-szukaj button{background:#c9a96e;color:#14181a;border:0;border-radius:6px;padding:0 .8rem;font:inherit;font-size:.8rem;cursor:pointer}' +
         '#konsult-modal .km-mapa-el{height:260px}#konsult-modal .km-info{margin:0;padding:.45rem .6rem;font-size:.78rem;color:#8a9a93}#konsult-modal .km-info strong{color:#dfc090}' +
+        '#konsult-modal form.km-szeroki{max-width:1000px;padding:1.1rem 1.2rem 1.2rem}#konsult-modal .km-ramka{width:100%;height:min(72vh,760px);border:0;border-radius:10px;background:#fff;display:block;margin-top:.6rem}' +
+        '#konsult-modal .km-pod{display:flex;gap:.6rem;flex-wrap:wrap}#konsult-modal .km-pod>*{flex:1 1 220px}#konsult-modal .km-pod.km-wyroznij .km-gotowe{box-shadow:0 0 0 3px rgba(201,169,110,.55);animation:kmPuls 1.2s ease-in-out 3}' +
+        '@keyframes kmPuls{50%{transform:scale(1.03)}}@media(max-width:640px){#konsult-modal{padding:6px}#konsult-modal form.km-szeroki{padding:.8rem;max-height:98vh}#konsult-modal .km-ramka{height:70vh}}' +
         '#konsult-modal .x{position:absolute;top:.6rem;right:.8rem;background:none;border:0;color:#8a9a93;font-size:1.6rem;cursor:pointer}#konsult-modal .msg{color:#ff9a7a;font-size:.85rem;min-height:1.2em;margin-top:.5rem}';
       document.head.appendChild(st);
       m = document.createElement('div'); m.id = 'konsult-modal';
@@ -127,8 +130,6 @@
         function kalendarzBezPlatnosci() {
         // Kalendarz Zencal w NOWEJ karcie (otwarta od razu przy kliknieciu - inaczej przegladarka ja zablokuje);
         // gruntowo.pl zostaje w tej karcie z podziekowaniem, wiec po rezerwacji klient wraca na strone
-        const okno = null;   // kalendarz w TEJ karcie - po rezerwacji Zencal wraca na gruntowo.pl (strona podziekowania)
-        if (okno) { try { okno.document.title = 'Wybór terminu - gruntowo.pl'; okno.document.body.innerHTML = '<p style="font:16px sans-serif;padding:2rem">Otwieramy kalendarz…</p>'; } catch (e2) {} }
         const dz = v('dzialka'), jestId = /^\d{6}_\d\./.test(dz);
         const zgodaK = !!(m.querySelector('[name=zgoda_kontakt]') && m.querySelector('[name=zgoda_kontakt]').checked);
         window.gruntowoZdarzenie && window.gruntowoZdarzenie('generate_lead', { formularz: 'konsultacja' });
@@ -136,16 +137,13 @@
           dzialka: jestId ? dz : '', miejscowosc: jestId ? '' : dz, temat: 'Konsultacja z ekspertem - wybór terminu w Zencal',
           strona_www: v('strona_www'), strona: location.href })
           .then(function () {   // w Zencal i tak wybiera termin, nawet gdy CRM nie odpowie
-            if (!okno || okno.closed) { window.location.href = ZENCAL_URL; return; }   // blokada okien - jak dawniej
-            okno.location.href = ZENCAL_URL;
-            f.innerHTML = '<button type="button" class="x" aria-label="Zamknij">×</button>' +
-              '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · 499 zł</div>' +
-              '<h3>Dziękujemy, ' + v('imie').split(' ')[0].replace(/[<>&"]/g, '') + '!</h3>' +
-              '<p>Kalendarz otworzył się w nowej karcie - wybierz tam dogodny termin. Po rezerwacji możesz zamknąć tamtą kartę i wrócić tutaj.</p>' +
-              '<p>Potwierdzenie spotkania przyjdzie na e-mail. Przed rozmową przygotujemy analizę Twojej działki.</p>' +
-              '<a href="' + ZENCAL_URL + '" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:1rem;background:#c9a96e;color:#14181a;border-radius:8px;padding:.8rem;font-weight:600;text-decoration:none">Otwórz kalendarz ponownie</a>' +
-              '<button type="button" class="km-wroc" style="display:block;width:100%;margin-top:.6rem;background:none;border:1px solid #2a2c26;border-radius:8px;color:#f2f0eb;padding:.7rem;font:inherit;cursor:pointer">Wróć na stronę</button>';
-            f.querySelector('.km-wroc').addEventListener('click', function () { m.style.display = 'none'; });
+            const imie = v('imie').split(' ')[0].replace(/[<>&"]/g, '');
+            kalendarzNaStronie(function () {
+              komunikatKonsultacji('Dziękujemy' + (imie ? ', ' + imie : '') + '!',
+                '<p>Potwierdzenie spotkania przyjdzie na e-mail. Przed rozmową przygotujemy analizę Twojej działki.</p>',
+                '<button type="button" class="km-wroc" style="' + PRZYCISK_JASNY + '">Wróć na stronę</button>')
+                .querySelector('.km-wroc').addEventListener('click', function () { document.getElementById('konsult-modal').style.display = 'none'; });
+            });
           });
         }
       });
@@ -158,6 +156,7 @@
   function komunikatKonsultacji(tytul, tresc, przyciski) {
     okienkoKonsultacji('');
     const m = document.getElementById('konsult-modal'), f = m.querySelector('form');
+    f.classList.remove('km-szeroki');
     f.innerHTML = '<button type="button" class="x" aria-label="Zamknij">×</button>' +
       '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · ' + CENA_KONSULTACJI + ' zł</div>' +
       '<h3>' + tytul + '</h3>' + tresc + (przyciski || '');
@@ -207,24 +206,33 @@
   // Gdy Zencal ma ustawiona strone podziekowania (?konsultacja=umowiona), okno samo sie zamyka
   // i strona pod spodem pokazuje potwierdzenie. Gdy przegladarka zablokuje okno - kalendarz w tej karcie.
   let oknoKalendarza = null;
+  // Kalendarz Zencal OSADZONY w okienku na gruntowo.pl (iframe) - klient w ogole nie opuszcza strony,
+  // wiec nie potrzeba strony podziekowania w Zencal. Po rezerwacji klika "Zarezerwowalem termin".
+  function kalendarzNaStronie(poRezerwacji) {
+    const f = komunikatKonsultacji('Wybierz termin konsultacji',
+      '<p style="margin:0">Wybierz dzień i godzinę w kalendarzu poniżej. Gdy zobaczysz potwierdzenie rezerwacji, kliknij <strong style="color:#dfc090">„Zarezerwowałem termin”</strong>.</p>' +
+      '<iframe class="km-ramka" src="' + ZENCAL_URL + '" title="Kalendarz konsultacji" allow="payment; clipboard-write" loading="eager"></iframe>',
+      '<div class="km-pod"><button type="button" class="km-gotowe" style="' + PRZYCISK_ZLOTY + '">Zarezerwowałem termin →</button>' +
+      '<a href="' + ZENCAL_URL + '" target="_blank" rel="noopener" class="km-nowa" style="' + PRZYCISK_JASNY + ';margin-top:1rem;text-align:center;text-decoration:none;box-sizing:border-box">Kalendarz się nie wyświetla? Otwórz w nowej karcie</a></div>');
+    f.classList.add('km-szeroki');
+    const ramka = f.querySelector('.km-ramka'); let ladowania = 0;
+    // kolejne zaladowanie ramki = klient przeszedl dalej w kalendarzu (zwykle potwierdzenie) -> wyrozniamy przycisk
+    ramka.addEventListener('load', function () { if (++ladowania >= 2) { const p = f.querySelector('.km-pod'); if (p) p.classList.add('km-wyroznij'); } });
+    f.querySelector('.km-gotowe').addEventListener('click', function () { f.classList.remove('km-szeroki'); (poRezerwacji || poRezerwacjiKonsultacji)(); });
+    f.querySelector('.km-nowa').addEventListener('click', function () { const p = f.querySelector('.km-pod'); if (p) p.classList.add('km-wyroznij'); });
+  }
   function podepnijKalendarz(a) {
     if (!a) return;
-    a.addEventListener('click', function (e) {
-      const w = Math.min(980, screen.availWidth - 40), h = Math.min(860, screen.availHeight - 60);
-      const okno = window.open(ZENCAL_URL, 'gruntowo_zencal', 'popup=yes,width=' + w + ',height=' + h + ',left=' + Math.max(0, (screen.availWidth - w) / 2) + ',top=' + Math.max(0, (screen.availHeight - h) / 2));
-      if (!okno) return;   // blokada okien - zwykly link (ta sama karta)
-      e.preventDefault(); oknoKalendarza = okno;
-      const f = komunikatKonsultacji('Wybierz termin w oknie kalendarza',
-        '<p>Kalendarz otworzył się w osobnym oknie. Po zarezerwowaniu terminu wróć tutaj - otworzysz raport rozszerzony działki.</p>',
-        '<button type="button" class="km-gotowe" style="' + PRZYCISK_ZLOTY + '">Zarezerwowałem termin →</button>' +
-        '<button type="button" class="km-znow" style="' + PRZYCISK_JASNY + '">Pokaż kalendarz ponownie</button>');
-      f.querySelector('.km-gotowe').addEventListener('click', function () { try { if (oknoKalendarza && !oknoKalendarza.closed) oknoKalendarza.close(); } catch (e2) {} poRezerwacjiKonsultacji(); });
-      f.querySelector('.km-znow').addEventListener('click', function () {
-        if (oknoKalendarza && !oknoKalendarza.closed) oknoKalendarza.focus();
-        else oknoKalendarza = window.open(ZENCAL_URL, 'gruntowo_zencal', 'popup=yes,width=' + w + ',height=' + h);
-      });
-    });
+    a.addEventListener('click', function (e) { e.preventDefault(); kalendarzNaStronie(); });
   }
+  // Gdyby Zencal przesylal z ramki informacje o rezerwacji - wylapujemy ja (bez szkody, gdy nie przesyla)
+  window.addEventListener('message', function (e) {
+    if (!/^https:\/\/([a-z0-9-]+\.)*zencal\.io$/.test(e.origin || '')) return;
+    let t = ''; try { t = typeof e.data === 'string' ? e.data : JSON.stringify(e.data); } catch (e2) {}
+    if (/confirm|booked|scheduled|meeting_created/i.test(t) && document.querySelector('#konsult-modal .km-ramka')) {
+      const p = document.querySelector('#konsult-modal .km-pod'); if (p) p.classList.add('km-wyroznij');
+    }
+  });
   // Wiadomosc z okna kalendarza (strona podziekowania Zencal otwarta w oknie): rezerwacja zrobiona
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin || !e.data || e.data.gruntowo !== 'konsultacja_umowiona') return;
