@@ -8,6 +8,8 @@
   const CRM_ENDPOINT = 'https://sniadecki-development.pl/gruntowo-api/zgloszenie.php';
   // ⬇️ Strona rezerwacji konsultacji w Zencal (zespol Kamil + Marcin). Puste = przycisk prowadzi do formularza kontaktowego.
   const ZENCAL_URL = 'https://app.zencal.io/o/gruntowo/kamilrosinski/konsultacja-z-ekspertem';
+  const API_GRUNTOWO = 'https://sniadecki-development.pl/gruntowo-api';
+  const CENA_KONSULTACJI = 499;
   function doCRM(dane) {
     return fetch(CRM_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dane) })
       .then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
@@ -40,7 +42,7 @@
       m = document.createElement('div'); m.id = 'konsult-modal';
       m.innerHTML = '<form novalidate><button type="button" class="x" aria-label="Zamknij">×</button>' +
         '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · 499 zł</div>' +
-        '<h3>Umów konsultację</h3><p>Zostaw dane i numer działki - przygotujemy się do rozmowy. W następnym kroku wybierzesz dogodny termin w kalendarzu.</p>' +
+        '<h3>Umów konsultację</h3><p>Zostaw dane i numer działki - przygotujemy się do rozmowy. Po opłaceniu konsultacji (PayU) wybierzesz dogodny termin w kalendarzu.</p>' +
         '<label>Imię i nazwisko</label><input name="imie" autocomplete="name" required>' +
         '<label>E-mail</label><input name="email" type="email" autocomplete="email" required>' +
         '<label>Telefon</label><input name="telefon" type="tel" autocomplete="tel">' +
@@ -51,7 +53,7 @@
         '<input name="strona_www" tabindex="-1" autocomplete="off" style="position:absolute;left:-5000px" aria-hidden="true">' +
         '<label class="km-zgoda"><input type="checkbox" name="zgoda_kontakt"> <span>Chcę otrzymywać od Śniadecki S.A. informacje o usługach gruntowo.pl (oferty, nowości) e-mailem i telefonicznie. Zgoda jest dobrowolna - możesz ją w każdej chwili wycofać.</span></label>' +
         '<p class="km-rodo">Administratorem Twoich danych jest Śniadecki S.A. Wykorzystamy je, aby umówić i przeprowadzić konsultację. Szczegóły w <a href="klauzula.html" target="_blank" rel="noopener">klauzuli informacyjnej</a>.</p>' +
-        '<div class="msg" role="status"></div><button type="submit">Dalej - wybierz termin →</button></form>';
+        '<div class="msg" role="status"></div><button type="submit">Zapłać ' + CENA_KONSULTACJI + ' zł i wybierz termin →</button></form>';
       document.body.appendChild(m);
       m.addEventListener('click', function (e) { if (e.target === m || e.target.classList.contains('x')) m.style.display = 'none'; });
       // Wskazanie dzialki na mapie w okienku konsultacji (klik -> numer z ULDK do pola "dzialka")
@@ -96,10 +98,30 @@
         const f = e.target, msg = f.querySelector('.msg'), btn = f.querySelector('button[type=submit]');
         const v = function (n) { return f.elements[n].value.trim(); };
         if (!v('imie') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email'))) { msg.textContent = 'Podaj imię i poprawny e-mail.'; return; }
-        btn.disabled = true; btn.textContent = 'Chwilka…';
+        btn.disabled = true; btn.textContent = 'Przechodzimy do płatności…';
+        const dz0 = v('dzialka'), zgoda0 = !!(m.querySelector('[name=zgoda_kontakt]') && m.querySelector('[name=zgoda_kontakt]').checked);
+        // 1) platnosc PayU (zgloszenie w CRM zapisuje serwer); po zaplaceniu PayU wraca na gruntowo.pl/?konsultacja=oplacona
+        fetch(API_GRUNTOWO + '/konsultacja-start.php', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imie: v('imie'), email: v('email'), telefon: v('telefon'), dzialka: dz0, zgoda_kontakt: zgoda0 ? 'TAK' : 'NIE', strona_www: v('strona_www') }) })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.ok && d.redirect) {
+              window.gruntowoZdarzenie && window.gruntowoZdarzenie('begin_checkout', { currency: 'PLN', value: CENA_KONSULTACJI, items: [{ item_name: 'Konsultacja z ekspertem' }] });
+              window.location.href = d.redirect; return;
+            }
+            if (d && d.wylaczone) { kalendarzBezPlatnosci(); return; }   // platnosci online jeszcze nie wlaczone - jak dotad
+            msg.textContent = (d && d.blad) || 'Nie udało się rozpocząć płatności. Spróbuj ponownie.';
+            btn.disabled = false; btn.textContent = 'Zapłać ' + CENA_KONSULTACJI + ' zł i wybierz termin →';
+          })
+          .catch(function () {
+            msg.textContent = 'Brak połączenia z serwerem płatności. Spróbuj ponownie za chwilę.';
+            btn.disabled = false; btn.textContent = 'Zapłać ' + CENA_KONSULTACJI + ' zł i wybierz termin →';
+          });
+        // Dotychczasowa droga (bez platnosci online): CRM + kalendarz w nowej karcie
+        function kalendarzBezPlatnosci() {
         // Kalendarz Zencal w NOWEJ karcie (otwarta od razu przy kliknieciu - inaczej przegladarka ja zablokuje);
         // gruntowo.pl zostaje w tej karcie z podziekowaniem, wiec po rezerwacji klient wraca na strone
-        const okno = window.open('', '_blank');
+        const okno = null;   // kalendarz w TEJ karcie - po rezerwacji Zencal wraca na gruntowo.pl (strona podziekowania)
         if (okno) { try { okno.document.title = 'Wybór terminu - gruntowo.pl'; okno.document.body.innerHTML = '<p style="font:16px sans-serif;padding:2rem">Otwieramy kalendarz…</p>'; } catch (e2) {} }
         const dz = v('dzialka'), jestId = /^\d{6}_\d\./.test(dz);
         const zgodaK = !!(m.querySelector('[name=zgoda_kontakt]') && m.querySelector('[name=zgoda_kontakt]').checked);
@@ -119,15 +141,75 @@
               '<button type="button" class="km-wroc" style="display:block;width:100%;margin-top:.6rem;background:none;border:1px solid #2a2c26;border-radius:8px;color:#f2f0eb;padding:.7rem;font:inherit;cursor:pointer">Wróć na stronę</button>';
             f.querySelector('.km-wroc').addEventListener('click', function () { m.style.display = 'none'; });
           });
+        }
       });
     }
     m.style.display = 'flex';
-    if (dzialka) m.querySelector('input[name=dzialka]').value = dzialka;
-    setTimeout(function () { m.querySelector('input[name=imie]').focus(); }, 50);
+    if (dzialka && m.querySelector('input[name=dzialka]')) m.querySelector('input[name=dzialka]').value = dzialka;
+    setTimeout(function () { const p = m.querySelector('input[name=imie]'); if (p) p.focus(); }, 50);
+  }
+  // Komunikat w okienku konsultacji (powrot z PayU / z kalendarza)
+  function komunikatKonsultacji(tytul, tresc, przyciski) {
+    okienkoKonsultacji('');
+    const m = document.getElementById('konsult-modal'), f = m.querySelector('form');
+    f.innerHTML = '<button type="button" class="x" aria-label="Zamknij">×</button>' +
+      '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · ' + CENA_KONSULTACJI + ' zł</div>' +
+      '<h3>' + tytul + '</h3>' + tresc + (przyciski || '');
+    return f;
+  }
+  const PRZYCISK_ZLOTY = 'display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:1rem;background:#c9a96e;color:#14181a;border:0;border-radius:8px;padding:.8rem;font-weight:600;text-decoration:none;font:inherit;cursor:pointer';
+  const PRZYCISK_JASNY = 'display:block;width:100%;margin-top:.6rem;background:none;border:1px solid #2a2c26;border-radius:8px;color:#f2f0eb;padding:.7rem;font:inherit;cursor:pointer';
+  // 2) Powrot z PayU: sprawdzamy platnosc, potem kalendarz Zencal w TEJ karcie (po rezerwacji Zencal wraca na gruntowo.pl)
+  function poPlatnosciKonsultacji(ext) {
+    if (!/^[a-f0-9]{32}$/.test(ext)) return;
+    komunikatKonsultacji('Sprawdzamy płatność…', '<p>To potrwa kilka sekund.</p>');
+    let proby = 0;
+    const sprawdz = function () {
+      fetch(API_GRUNTOWO + '/platnosc-status.php?zamowienie=' + ext + '&id=', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.oplacone) {
+            try { if (!localStorage.getItem('gruntowo_kons_' + ext)) { localStorage.setItem('gruntowo_kons_' + ext, '1');
+              window.gruntowoZdarzenie && window.gruntowoZdarzenie('purchase', { transaction_id: ext, currency: 'PLN', value: CENA_KONSULTACJI, items: [{ item_name: 'Konsultacja z ekspertem' }] }); } } catch (e) {}
+            try { localStorage.setItem('gruntowo_konsultacja', ext); } catch (e) {}
+            const f = komunikatKonsultacji('Płatność przyjęta - dziękujemy!',
+              '<p>Teraz wybierz dogodny termin konsultacji w kalendarzu. Po rezerwacji wrócisz na gruntowo.pl, a potwierdzenie spotkania przyjdzie na e-mail.</p>',
+              '<a href="' + ZENCAL_URL + '" style="' + PRZYCISK_ZLOTY + '">Wybierz termin →</a>');
+            return;
+          }
+          if (d && /CANCELED|REJECTED/.test(d.status || '')) {
+            komunikatKonsultacji('Płatność nie została zrealizowana', '<p>Płatność została anulowana. Możesz spróbować ponownie - nic nie zostało pobrane.</p>',
+              '<button type="button" class="km-ponow" style="' + PRZYCISK_ZLOTY + '">Spróbuj ponownie</button>')
+              .querySelector('.km-ponow').addEventListener('click', function () { document.getElementById('konsult-modal').remove(); okienkoKonsultacji(''); });
+            return;
+          }
+          if (++proby < 10) { setTimeout(sprawdz, 3000); return; }
+          komunikatKonsultacji('Czekamy na potwierdzenie płatności', '<p>PayU jeszcze nie potwierdziło płatności. Zwykle trwa to chwilę - odśwież stronę za minutę. ' +
+            'Jeśli płatność została pobrana, a problem się powtarza, napisz na <a href="mailto:kontakt@gruntowo.pl" style="color:#c9a96e">kontakt@gruntowo.pl</a>.</p>',
+            '<button type="button" class="km-odswiez" style="' + PRZYCISK_ZLOTY + '">Sprawdź ponownie</button>')
+            .querySelector('.km-odswiez').addEventListener('click', function () { poPlatnosciKonsultacji(ext); });
+        })
+        .catch(function () { if (++proby < 10) setTimeout(sprawdz, 4000); });
+    };
+    sprawdz();
+  }
+  // 3) Powrot z kalendarza Zencal po rezerwacji (adres ustawiony w Zencal jako strona podziekowania)
+  function poRezerwacjiKonsultacji() {
+    window.gruntowoZdarzenie && window.gruntowoZdarzenie('konsultacja_umowiona', {});
+    const f = komunikatKonsultacji('Termin zarezerwowany - do zobaczenia!',
+      '<p>Potwierdzenie spotkania i link do rozmowy wysłaliśmy na Twój e-mail. Przed konsultacją przygotujemy analizę Twojej działki.</p>',
+      '<button type="button" class="km-wroc" style="' + PRZYCISK_JASNY + '">Wróć na stronę</button>');
+    f.querySelector('.km-wroc').addEventListener('click', function () { document.getElementById('konsult-modal').style.display = 'none'; });
   }
   // Wejscie z raportu (przycisk "Umow konsultacje") -> od razu okienko konsultacji z numerem dzialki
   (function () {
     const p = new URLSearchParams(location.search);
+    if (p.get('konsultacja') === 'oplacona' || p.get('konsultacja') === 'umowiona') {
+      if (p.get('konsultacja') === 'oplacona') poPlatnosciKonsultacji(p.get('zamowienie') || '');
+      else poRezerwacjiKonsultacji();
+      try { history.replaceState(null, '', location.pathname); } catch (e) { /* bez znaczenia */ }
+      return;
+    }
     if (ZENCAL_URL && p.get('konsultacja') === '1') {
       okienkoKonsultacji(p.get('dzialka') || '');
       try { history.replaceState(null, '', location.pathname); } catch (e) { /* bez znaczenia */ }
@@ -214,9 +296,18 @@
           const koniec = document.getElementById('sourcing') || sekcja;
           if (wysunieta) { wymusPelna = true; }
           hero.classList.remove('hero-czeka'); hero.classList.add('hero-sterowane'); sb.classList.remove('wysuwa');
+          let ostO = -1;
           const pokazSzukaj = function (o) {
-            sb.style.opacity = o.toFixed(3);
-            sb.style.transform = 'translateY(' + ((1 - o) * 46).toFixed(1) + 'px)';
+            if (o === ostO) return; ostO = o;
+            if (o >= 1) {
+              // w pelni widoczna: bez transformacji i warstwy GPU - inaczej tekst bywa rozmyty
+              // (zwlaszcza przy skalowaniu ekranu 125%/150% w Windows)
+              sb.style.opacity = ''; sb.style.transform = ''; sb.style.willChange = 'auto';
+            } else {
+              sb.style.willChange = 'opacity, transform';
+              sb.style.opacity = o.toFixed(3);
+              sb.style.transform = 'translate3d(0,' + Math.round((1 - o) * 46) + 'px,0)';
+            }
             sb.style.pointerEvents = o > 0.4 ? 'auto' : 'none';
             hero.classList.toggle('szukaj-widac', o > 0.02);
           };
@@ -665,6 +756,20 @@
           if (norm(el.innerHTML) !== norm(v)) el.innerHTML = v;
         }
       });
+      // Listy wyboru z arkusza (np. tematy w formularzu kontaktowym): pozycje rozdzielone znakiem | albo ;
+      document.querySelectorAll('select[data-cms-lista]').forEach(function (sel) {
+        const v = map[sel.getAttribute('data-cms-lista')];
+        if (!v || !String(v).trim()) return;
+        const pozycje = String(v).split(/\s*[|;\n]\s*/).map(function (x) { return x.trim(); }).filter(Boolean);
+        if (!pozycje.length) return;
+        const obecne = Array.prototype.slice.call(sel.options).filter(function (o) { return o.value !== ''; }).map(function (o) { return o.text; });
+        if (obecne.join('|') === pozycje.join('|')) return;   // bez zmian - nie przebudowujemy
+        const wybrane = sel.value, pierwsza = sel.options[0] && sel.options[0].value === '' ? sel.options[0].text : 'Wybierz…';
+        sel.innerHTML = '';
+        sel.appendChild(new Option(pierwsza, ''));
+        pozycje.forEach(function (t) { sel.appendChild(new Option(t, t)); });
+        if (wybrane && pozycje.indexOf(wybrane) > -1) sel.value = wybrane;
+      });
     })
     .catch(function (e) {
       console.warn('CMS: nie udało się pobrać arkusza -', e);
@@ -838,6 +943,16 @@ function plynnieDo(top) {
       autoRaf: true,
       // w okienku konsultacji, na mapach i w menu kolko dziala normalnie (przewijanie listy, zoom mapy)
       prevent: function (n) { return !!(n && n.closest && n.closest('#konsult-modal, .leaflet-container, .mobile-menu, [data-lenis-prevent]')); }
+    });
+    // Po zatrzymaniu przewijania ustawiamy strone na pelny piksel. Plynne przewijanie konczy sie czasem
+    // na ulamku piksela (np. przy skalowaniu ekranu 125%) i wtedy tekst w przyklejonym hero byl lekko rozmyty.
+    let tPiksel = null;
+    window.__lenis.on('scroll', function () {
+      clearTimeout(tPiksel);
+      tPiksel = setTimeout(function () {
+        const y = window.scrollY;
+        if (Math.abs(y - Math.round(y)) > 0.01 && window.__lenis) window.__lenis.scrollTo(Math.round(y), { immediate: true, force: true });
+      }, 150);
     });
   } catch (e) { window.__lenis = null; }
 })();

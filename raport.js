@@ -798,7 +798,7 @@
     kolejka.push(function (gotowe) {
       setMapaOverlay('map-pog', ortoBase(mbPog.join(','), pogWH), pogUchwUrl, gotowe);
       rysujObrys('map-pog', wkt, mbPog, pogWH);
-      pobierzLegendePOG(bbox, pogWH);
+      pobierzLegendePOG(bbox, pogWH, mbPog);
     });
 
     // MAPA 2: MPZP - poprawne warstwy tresci planu (raster + wektor + granice).
@@ -1426,7 +1426,7 @@
 
   // Pobiera strefe POG przez GetFeatureInfo w EPSG:2180 (w 4326 usluga czesto nic nie zwraca).
   // Wynik: legenda pod mapa + ZNAK WODNY gdy planu brak + zdarzenie gruntowo:pog (dla raportu rozszerzonego).
-  function pobierzLegendePOG(bbox, wh) {
+  function pobierzLegendePOG(bbox, wh, kadr) {
     const c = srodek(bbox);
     ruFI('wms-pog', RU_POG_FI, c.lon, c.lat).then(function (obj) {
       const app = obj.filter(function (o) { return /^APP\.POG\.PrawnieWiazacy/.test(o.warstwa); })[0];
@@ -1456,8 +1456,57 @@
         if (/ObszarZabudowySrodmiejskiej/.test(o.warstwa)) w.ozs = true;
       });
       if (app) w.plan = { tytul: ruMalymi(ruPole(app.p, /^Tytu[łl]$/)), od: ruPole(app.p, /obowi.zuje od/i), link: ruPole(app.p, /^Link/) };
+      // Usluga mapowa RU ma czasem sama granice planu bez stref (np. Swarzedz) - strefy dociagamy z API rejestru przez nasz serwer
+      const idPog = !strefa && w.plan ? ruIdAktu(w.plan.link) : '';
+      if (idPog) { strefyPOGzAPI(idPog, c, kadr, wh, w); return; }
       pogLegendaRU(w);
     }).catch(function () { pobierzLegendePOGstara(bbox, wh); });
+  }
+
+  // Strefy POG z API Rejestru Urbanistycznego (pog-strefy.php na LH): strefa w punkcie + ksztalty stref na mape
+  const URL_POG_STREFY = 'https://sniadecki-development.pl/gruntowo-api/pog-strefy.php';
+  const KOLORY_STREF = { SW: '#d9772b', SJ: '#f0c24b', SZ: '#c7b35a', SU: '#e0565b', SH: '#b5446e', SP: '#8d6cc0', SR: '#b9d77c',
+    SI: '#8f969a', SN: '#5fb06c', SC: '#6e8f78', SG: '#8a6a45', SO: '#a5d08c', SK: '#d4d4d4' };
+  function strefyPOGzAPI(idPog, c, kadr, wh, w) {
+    const url = URL_POG_STREFY + '?id=' + idPog + '&lon=' + c.lon.toFixed(6) + '&lat=' + c.lat.toFixed(6) + (kadr ? '&bbox=' + kadr.map(function (v) { return v.toFixed(6); }).join(',') : '');
+    fetchZPonowieniem(url, 1).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok && d.strefa) {
+        w.oznaczenie = d.strefa.oznaczenie; w.kod = d.strefa.symbol; w.nazwaStrefy = ruMalymi(d.strefa.nazwa);
+        if (d.ouz) { w.ouz = true; w.ouzOzn = d.ouzOzn || ''; }
+        if (d.ozs) w.ozs = true;
+        w.zrodloStref = 'api';
+      }
+      if (d && d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c);
+      pogLegendaRU(w);
+    }).catch(function () { pogLegendaRU(w); });
+  }
+  function rysujStrefyPOG(ksztalty, kadr, wh, strefaDzialki, c) {
+    const img = $('map-pog'); const box = img && img.parentElement; if (!box) return;
+    const W = wh.W, H = wh.H;
+    const px = function (p) { return [((p[0] - kadr[0]) / (kadr[2] - kadr[0])) * W, ((kadr[3] - p[1]) / (kadr[3] - kadr[1])) * H]; };
+    let sciezki = '', napisy = '';
+    ksztalty.forEach(function (k) {
+      const kol = KOLORY_STREF[k.s] || '#cccccc';
+      const d = k.p.map(function (r) { return 'M' + r.map(function (p) { const q = px(p); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' L') + ' Z'; }).join(' ');
+      sciezki += '<path d="' + d + '" fill="' + kol + '" fill-opacity="0.42" fill-rule="evenodd" stroke="#ffffff" stroke-opacity="0.85" stroke-width="1.2" vector-effect="non-scaling-stroke"/>';
+      // napis: srodek ciezkosci punktow obrysu, o ile wypada w kadrze
+      // napis: srednia punktow obrysu lezacych w kadrze; strefa dzialki - tuz pod dzialka
+      let sx = 0, sy = 0, n = 0;
+      k.p[0].forEach(function (p) { const q = px(p); if (q[0] > 0 && q[0] < W && q[1] > 0 && q[1] < H) { sx += q[0]; sy += q[1]; n++; } });
+      if (k.o === strefaDzialki && c) { const q = px([c.lon, c.lat]); sx = q[0]; sy = q[1] + H * 0.09; }
+      else if (n >= 3) { sx /= n; sy /= n; } else { sx = -1; }
+      if (sx > 30 && sx < W - 30 && sy > 16 && sy < H - 16) napisy += '<text x="' + sx.toFixed(1) + '" y="' + sy.toFixed(1) + '" font-family="monospace" font-size="17" font-weight="700" fill="#14181a" stroke="#ffffff" stroke-width="3.5" paint-order="stroke" text-anchor="middle">' + escH(k.o) + '</text>';
+    });
+    const stary = box.querySelector('.pog-strefy-svg'); if (stary) stary.remove();
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'pog-strefy-svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4;';
+    svg.innerHTML = sciezki + napisy;
+    box.appendChild(svg);
+    const cap = box.nextElementSibling && box.nextElementSibling.classList.contains('mapbox-cap') ? box.nextElementSibling : null;
+    if (cap) cap.textContent = 'Strefy planu ogólnego gminy · Rejestr Urbanistyczny';
   }
 
   function pogLegendaRU(wynik) {

@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261006w';
+  var RAPORT_JS = 'raport.js?v=20261007p';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -1817,6 +1817,32 @@
     h += '<p class="mapbox-cap" style="margin-top:.75rem;">Pozwolenia na budowę z rejestru GUNB (RWDZ) w promieniu ' + odl(w.promien || 1000) + ', wnioski i decyzje od ' + od + ' · bez sieci uzbrojenia i rozbiórek' +
       (w.aktualnosc ? ' · stan rejestru: ' + dataPL(w.aktualnosc.slice(0, 10)) : '') + (w.bez_polozenia ? ' · ' + w.bez_polozenia + ' spraw bez ustalonego położenia' : '') + ' · szczegóły sprawy w ' + linkRWDZ + '</p>';
     el.innerHTML = h;
+    ladujTloPozwolen();
+  }
+
+  // Podklad mapy pozwolen: najpierw szybkie kafelki WMTS (jak pozostale mapy raportu), przy bledzie WMS
+  // z kilkukrotnym ponowieniem (1,5 s, 4 s, 8 s). Wczesniej obraz ladowal sie raz - i czasem zostawal czarny.
+  var tloPozwolen = null;
+  function ladujTloPozwolen() {
+    var bb = tloPozwolen, el = document.querySelector('.pozw-mapka image.pz-tlo');
+    if (!bb || !el) return;
+    var wmsUrl = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&SRS=EPSG:4326&FORMAT=image/jpeg&TRANSPARENT=false&LAYERS=Raster&STYLES=&WIDTH=900&HEIGHT=900&BBOX=' + bb.map(function (v) { return v.toFixed(6); }).join(',');
+    var przerwy = [1500, 4000, 8000];
+    var wms = function (proba) {
+      return fetch(wmsUrl + (proba ? '&_r=' + Date.now() : '')).then(function (r) {
+        if (!r.ok || (r.headers.get('content-type') || '').indexOf('image') === -1) throw new Error('nie obraz');
+        return r.blob();
+      }).then(function (b) { return URL.createObjectURL(b); }).catch(function () {
+        if (proba >= przerwy.length) return null;
+        return new Promise(function (ok) { setTimeout(ok, przerwy[proba]); }).then(function () { return wms(proba + 1); });
+      });
+    };
+    var wmts = window.GruntowoMapy && GruntowoMapy.ortoWMTS ? GruntowoMapy.ortoWMTS(bb, 900, 900).catch(function () { return null; }) : Promise.resolve(null);
+    wmts.then(function (u) { return u || wms(0); }).then(function (u) {
+      var akt = document.querySelector('.pozw-mapka image.pz-tlo'); if (!akt) return;
+      if (u) { akt.setAttribute('href', u); akt.setAttributeNS('http://www.w3.org/1999/xlink', 'href', u); return; }
+      var z = document.querySelector('.pozw-mapka .pz-zrodlo'); if (z) z.textContent += ' (podkład chwilowo niedostępny - odśwież stronę)';
+    });
   }
 
   // Mapa polozenia pozwolen: ortofotomapa (GUGiK) 2 x 2 km, obrys dzialki, ponumerowane punkty (numery jak na liscie)
@@ -1825,7 +1851,7 @@
     var dLon = R * 1.08 / (111320 * Math.cos(s[1] * Math.PI / 180)), dLat = R * 1.08 / 110574;
     var bb = [s[0] - dLon, s[1] - dLat, s[0] + dLon, s[1] + dLat];
     var X = function (lon) { return (lon - bb[0]) / (bb[2] - bb[0]) * S; }, Y = function (lat) { return (bb[3] - lat) / (bb[3] - bb[1]) * S; };
-    var orto = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&SRS=EPSG:4326&FORMAT=image/jpeg&TRANSPARENT=false&LAYERS=Raster&STYLES=&WIDTH=900&HEIGHT=900&BBOX=' + bb.map(function (v) { return v.toFixed(6); }).join(',');
+    tloPozwolen = bb;   // podklad ortofoto ladujemy osobno (z ponawianiem) - ladujTloPozwolen()
     var c = S / 2, r1 = R / (R * 1.08) * S / 2;
     var obrys = geo.pier.map(function (r) { return 'M' + r.map(function (p) { return X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1); }).join('L') + 'Z'; }).join('');
     var pkt = lista.slice().reverse().map(function (x) {
@@ -1836,7 +1862,7 @@
     }).join('');
     var leg = [['dom', 'domy'], ['mieszk', 'wielorodzinne'], ['uslugi', 'usługi'], ['przem', 'przemysł'], ['infra', 'infrastruktura']];
     return '<figure class="pozw-mapka"><svg viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="Położenie pozwoleń na budowę na ortofotomapie">' +
-      '<image href="' + orto + '" x="0" y="0" width="' + S + '" height="' + S + '" preserveAspectRatio="none"/>' +
+      '<image class="pz-tlo" x="0" y="0" width="' + S + '" height="' + S + '" preserveAspectRatio="none"/>' +
       '<rect class="pz-przyciemn" x="0" y="0" width="' + S + '" height="' + S + '"/>' +
       '<circle class="pz-krag" cx="' + c + '" cy="' + c + '" r="' + r1.toFixed(1) + '"/><circle class="pz-krag" cx="' + c + '" cy="' + c + '" r="' + (r1 / 2).toFixed(1) + '"/>' +
       '<text class="pz-opis" x="' + c + '" y="' + (c - r1 / 2 - 4).toFixed(1) + '">500 m</text><text class="pz-opis" x="' + c + '" y="' + (c - r1 - 4).toFixed(1) + '">1 km</text>' +

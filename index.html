@@ -10,9 +10,15 @@
   <meta property="og:site_name" content="gruntowo.pl" />
   <meta property="og:url" content="https://gruntowo.pl/" />
   <meta property="og:title" content="gruntowo.pl - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
-  <meta property="og:description" content="Bezpłatny raport o działce: plan miejscowy, ceny transakcyjne z okolicy, media, zdjęcia lotnicze." />
+  <meta property="og:description" content="Analiza działki w kilka minut: plan miejscowy, warunki zabudowy, media, ceny transakcyjne z okolicy. Bezpłatny raport o działce." />
+  <meta property="og:image" content="https://gruntowo.pl/og-gruntowo.jpg?v=1" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="gruntowo.pl - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
   <meta property="og:locale" content="pl_PL" />
-  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:description" content="Analiza działki w kilka minut: plan miejscowy, warunki zabudowy, media, ceny transakcyjne z okolicy." />
+  <meta name="twitter:image" content="https://gruntowo.pl/og-gruntowo.jpg?v=1" />
   <meta name="twitter:title" content="gruntowo.pl - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -425,8 +431,8 @@
           <div class="fg"><label>E-mail</label><input type="email" id="c-email" placeholder="jan@firma.pl" /></div>
           <div class="fg"><label>Telefon <span style="opacity:.6">(opcjonalnie)</span></label><input type="tel" id="c-tel" placeholder="600 000 000" /></div>
           <div class="fg" style="position:absolute;left:-5000px" aria-hidden="true"><input type="text" name="strona_www" tabindex="-1" autocomplete="off" /></div>
-          <div class="fg"><label>Temat</label>
-            <select id="c-topic">
+          <div class="fg"><label data-cms="kontakt_temat_etykieta">Temat</label>
+            <select id="c-topic" data-cms-lista="kontakt_tematy">
               <option value="">Wybierz…</option>
               <option>Sourcing gruntów</option>
               <option>Gotowa oferta dla dewelopera</option>
@@ -459,14 +465,14 @@
     <div class="container footer-inner">
       <div>
         <a href="#" class="nav-logo"><img src="gruntowo-logo.png" alt="gruntowo.pl" class="ft-logo-img" /></a>
-        <p class="ft-sub">Portal z gruntami</p>
+        <p class="ft-sub">Analiza działek - pokaż nam swój grunt, a my powiemy Ci, co możesz z nim zrobić</p>
         <p class="ft-sub">Śniadecki S.A., ul. Młyńska 12, 61-730 Poznań</p>
         <p class="ft-sub">KRS 0001181879 · NIP 7831931207 · REGON 542155496</p>
         <p class="ft-sub ft-sub-sm">Sąd Rejonowy Poznań - Nowe Miasto i Wilda w Poznaniu, VIII Wydział Gospodarczy KRS · kapitał zakładowy 113 750 zł, wpłacony w całości</p>
         <p class="ft-sub ft-sub-sm">gruntowo.pl jest znakiem należącym do Śniadecki S.A. · <a href="klauzula.html">Klauzula informacyjna</a></p>
         <a href="https://gruntowo.com" target="_blank" rel="noopener" class="ft-partner">
           <img src="gruntowo-logo.png" alt="Gruntowo.com" />
-          <span>Portal z gruntami</span>
+          <span>gruntowo.com</span>
         </a>
       </div>
       <nav>
@@ -488,6 +494,6 @@
   <script src="zgody.js?v=2"></script>
   <script src="haslo.js?v=20261006"></script>
   <script src="lenis.min.js?v=1"></script>
-  <script src="main.js?v=54"></script>
+  <script src="main.js?v=56"></script>
 </body>
 </html>
