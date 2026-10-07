@@ -206,12 +206,13 @@
   // Gdy Zencal ma ustawiona strone podziekowania (?konsultacja=umowiona), okno samo sie zamyka
   // i strona pod spodem pokazuje potwierdzenie. Gdy przegladarka zablokuje okno - kalendarz w tej karcie.
   let oknoKalendarza = null;
-  // Kalendarz Zencal OSADZONY w okienku na gruntowo.pl (iframe) - klient w ogole nie opuszcza strony,
+  // Kalendarz Zencal OSADZONY w okienku na gruntowo.pl (iframe) - klient w ogole nie opuszcza strony.
+  // sandbox BEZ allow-top-navigation: Zencal po rezerwacji probuje przeniesc cala karte na swoja strone potwierdzenia - blokujemy to,
   // wiec nie potrzeba strony podziekowania w Zencal. Po rezerwacji klika "Zarezerwowalem termin".
   function kalendarzNaStronie(poRezerwacji) {
     const f = komunikatKonsultacji('Wybierz termin konsultacji',
-      '<p style="margin:0">Wybierz dzień i godzinę w kalendarzu poniżej. Gdy zobaczysz potwierdzenie rezerwacji, kliknij <strong style="color:#dfc090">„Zarezerwowałem termin”</strong>.</p>' +
-      '<iframe class="km-ramka" src="' + ZENCAL_URL + '" title="Kalendarz konsultacji" allow="payment; clipboard-write" loading="eager"></iframe>',
+      '<p style="margin:0">Wybierz dzień i godzinę w kalendarzu poniżej. Po potwierdzeniu rezerwacji w kalendarzu kliknij <strong style="color:#dfc090">„Zarezerwowałem termin”</strong>.</p>' +
+      '<iframe class="km-ramka" src="' + ZENCAL_URL + '" title="Kalendarz konsultacji" allow="payment; clipboard-write" loading="eager" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals"></iframe>',
       '<div class="km-pod"><button type="button" class="km-gotowe" style="' + PRZYCISK_ZLOTY + '">Zarezerwowałem termin →</button>' +
       '<a href="' + ZENCAL_URL + '" target="_blank" rel="noopener" class="km-nowa" style="' + PRZYCISK_JASNY + ';margin-top:1rem;text-align:center;text-decoration:none;box-sizing:border-box">Kalendarz się nie wyświetla? Otwórz w nowej karcie</a></div>');
     f.classList.add('km-szeroki');
