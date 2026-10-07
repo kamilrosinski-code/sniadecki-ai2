@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261002r';
+  var RAPORT_JS = 'raport.js?v=20261006w';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -1559,7 +1559,10 @@
   }
 
   // ---- Zapisy szczegolowe MPZP dla terenu (uchwala przerobiona przez AI na serwerze, zapamietana w bazie) ----
-  var ustaleniaStart = false;
+  // Kolejnosc: 1) symbol terenu dzialki (z uslugi krajowej albo odczytany z rysunku planu)
+  //            2) zapisy uchwaly TYLKO dla tego terenu (krotka odpowiedz AI, zwykle do minuty)
+  //            3) pozostale tereny planu - dopiero na zyczenie (przycisk), pelny odczyt 1-3 min
+  var ustaleniaStart = false, ustaleniaBaza = '', ustCtx = {};
   function wczytajUstalenia(mp) {
     var box = $('plan-ustalenia'); if (!box || ustaleniaStart) return;
     if (mp.mesip && mp.mesip.tereny && mp.mesip.tereny.some(function (t) { return t.ustalenia; })) { ustaleniaStart = true; rysujUstaleniaMesip(mp.mesip); return; }
@@ -1568,25 +1571,58 @@
     if (!id && !pdf) return;          // brak dostepu do tresci uchwaly - zostaje link w sekcji wyzej
     ustaleniaStart = true;
     ustaleniaBaza = URL_USTALENIA + (id ? '?id=' + encodeURIComponent(id) : '?pdf=' + encodeURIComponent(pdf));
-    var url = zTokenem(ustaleniaBaza, stan.dzialka && stan.dzialka.id);
+    ustCtx = { symbole: [], zrodloSym: null, wybrane: null, pelne: null };
+    if (mp.symbol) { ustCtx.symbole = [mp.symbol]; ustCtx.zrodloSym = { zrodlo: 'kimpzp' }; pobierzUstalenia(ustCtx.symbole); }
+    else if (stan.dzialka && stan.dzialka.id) pobierzSymbol();
+    else pobierzUstalenia(null);
+  }
+  function idDzialki() { return stan.dzialka && stan.dzialka.id; }
+  function czekajUst(tytul, tekst) {
+    var box = $('plan-ustalenia'); if (!box) return;
+    box.innerHTML = '<div class="legenda-title">Zapisy planu miejscowego dla działki</div><div class="ust-czeka"><span class="ust-kropka"></span><div><strong>' + esc(tytul) + '</strong><p>' + esc(tekst) + '</p></div></div>';
+  }
+  // Odpytywanie serwera do skutku (serwer odpowiada "w_toku", a prace robi w tle)
+  function odpytuj(url, gotowe, blad, maxProb) {
     var proby = 0;
-    var czekaj = function () {
-      box.innerHTML = '<div class="ust-czeka"><span class="ust-kropka"></span><div><strong>Czytamy uchwałę planu…</strong>' +
-        '<p>Wyciągamy zapisy dla terenu działki (przeznaczenie, wysokość, powierzchnia zabudowy, dachy, minimalna działka). ' +
-        'Pierwsze przetworzenie planu trwa zwykle 1-3 minuty - kolejne raporty z tego planu mają je od razu.</p></div></div>';
-    };
     var pytaj = function () {
       fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.stan === 'gotowe') { stan.ustalenia = d.wynik; rysujUstalenia(d.wynik, mp.symbol); return; }
-        if (d.stan === 'w_toku' && ++proby < 45) { czekaj(); setTimeout(pytaj, 6000); return; }
-        if (d.stan === 'wylaczone') { box.innerHTML = ''; return; }
-        box.innerHTML = '<p class="mapbox-cap">Nie udało się automatycznie odczytać zapisów planu' + (d.blad ? ' (' + esc(d.blad) + ')' : '') + ' - skorzystaj z linku do uchwały powyżej.</p>';
-      }).catch(function () {
-        if (++proby < 45) setTimeout(pytaj, 8000);
-        else box.innerHTML = '<p class="mapbox-cap">Serwer nie odpowiedział - skorzystaj z linku do uchwały powyżej.</p>';
-      });
+        if (d.stan === 'gotowe' && d.wynik) { gotowe(d.wynik); return; }
+        if (d.stan === 'w_toku' && ++proby < maxProb) { setTimeout(pytaj, 5000); return; }
+        blad(d.stan === 'wylaczone' ? 'wylaczone' : (d.blad || 'brak odpowiedzi'));
+      }).catch(function () { if (++proby < maxProb) setTimeout(pytaj, 7000); else blad('serwer nie odpowiedział'); });
     };
-    czekaj(); pytaj();
+    pytaj();
+  }
+  function pobierzSymbol() {
+    czekajUst('Ustalamy teren działki na rysunku planu…', 'Usługa krajowa nie podała symbolu terenu - nakładamy granice działki na rysunek planu i sprawdzamy, w którym terenie leży. Zwykle 20-60 sekund.');
+    odpytuj(zTokenem(ustaleniaBaza + '&dzialka=' + encodeURIComponent(idDzialki()), idDzialki()), function (w) {
+      w.zrodlo = 'rysunek'; stan.symbolRysunek = w; ustCtx.zrodloSym = w;
+      ustCtx.symbole = (w.symbole || []).map(function (s) { return s.symbol; }).filter(Boolean);
+      pobierzUstalenia(ustCtx.symbole.length ? ustCtx.symbole : null);
+    }, function (b) {
+      if (b === 'wylaczone') { $('plan-ustalenia').innerHTML = ''; return; }
+      ustCtx.zrodloSym = { blad: b }; pobierzUstalenia(null);   // bez symbolu - caly plan + wybor terenu z listy
+    }, 30);
+  }
+  function pobierzUstalenia(symbole) {
+    if (symbole) czekajUst('Czytamy zapisy planu dla terenu ' + symbole.join(', ') + '…', 'Wyszukujemy w uchwale ustalenia tylko dla terenu działki (przeznaczenie, wysokość, powierzchnia zabudowy, dachy, minimalna działka). Zwykle do minuty.');
+    else czekajUst('Czytamy uchwałę planu…', 'Wyciągamy zapisy wszystkich terenów planu - pierwsze przetworzenie planu trwa 1-3 minuty, kolejne raporty z tego planu mają je od razu.');
+    var url = zTokenem(ustaleniaBaza + (symbole ? '&symbol=' + encodeURIComponent(symbole.join(',')) : ''), idDzialki());
+    odpytuj(url, function (w) {
+      stan.ustalenia = w;
+      if (symbole) ustCtx.wybrane = w; else ustCtx.pelne = w;
+      rysujUstalenia();
+    }, function (b) {
+      var box = $('plan-ustalenia'); if (!box) return;
+      if (b === 'wylaczone') { box.innerHTML = ''; return; }
+      if (symbole) { ustCtx.bladWybranych = b; ustCtx.symbole = []; pobierzUstalenia(null); return; }   // np. terenu nie ma w uchwale - pelny odczyt + wybor
+      box.innerHTML = '<p class="mapbox-cap">Nie udało się automatycznie odczytać zapisów planu (' + esc(b) + ') - skorzystaj z linku do uchwały powyżej.</p>';
+    }, symbole ? 30 : 45);
+  }
+  function pobierzWszystkieTereny(btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Wczytujemy pozostałe tereny planu… (1-3 min)'; }
+    odpytuj(zTokenem(ustaleniaBaza, idDzialki()), function (w) { ustCtx.pelne = w; rysujUstalenia(); },
+      function (b) { if (btn) { btn.disabled = false; btn.textContent = 'Nie udało się (' + b + ') - spróbuj ponownie'; } }, 45);
   }
 
   // Do PDF/druku rozwijamy wszystkie tereny planu
@@ -1612,7 +1648,6 @@
     box.innerHTML = h;
   }
   function normSymbol(s) { return String(s || '').toUpperCase().replace(/[\s.]/g, ''); }
-  var ustaleniaBaza = '', symbolStart = false;
   function znajdzTeren(tereny, symbol) {
     var sym = normSymbol(symbol); if (!sym) return null;
     return tereny.filter(function (x) { return normSymbol(x.symbol) === sym; })[0] ||
@@ -1638,33 +1673,42 @@
       (inne.length ? '<div class="ust-inne-t">Ważne zapisy</div><ul class="ust-inne">' + inne.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' : '') +
       (x.paragraf ? '<p class="mapbox-cap">Źródło: ' + esc(tekstUst(x.paragraf)) + ' uchwały.</p>' : '') + '</div>';
   }
-  // zrodloSym: {zrodlo:'kimpzp'|'rysunek'|'wybor', symbole:[{symbol,udzial}], pewnosc, uzasadnienie, obraz}
-  function rysujUstalenia(d, symbol, zrodloSym) {
-    var box = $('plan-ustalenia'); if (!box || !d || !d.tereny) return;
-    var tereny = d.tereny.filter(function (x) { return x && x.symbol; });
+  // Rysuje zapisy: karta terenu dzialki (ustCtx.wybrane albo wyszukane w pelnym odczycie) + wybor innych terenow
+  function rysujUstalenia() {
+    var box = $('plan-ustalenia'); if (!box) return;
+    var d = ustCtx.wybrane || ustCtx.pelne; if (!d || !d.tereny) return;
+    var zrodloSym = ustCtx.zrodloSym || {};
     var lista = [];
-    if (zrodloSym && zrodloSym.symbole) zrodloSym.symbole.forEach(function (s) { var t = znajdzTeren(tereny, s.symbol); if (t && lista.indexOf(t) < 0) { t._udzial = s.udzial; lista.push(t); } });
-    else if (symbol) { var t0 = znajdzTeren(tereny, symbol); if (t0) lista.push(t0); }
-    var zr = zrodloSym ? zrodloSym.zrodlo : 'kimpzp';
+    ustCtx.symbole.forEach(function (sym) {
+      var t = znajdzTeren(d.tereny, sym) || (ustCtx.pelne ? znajdzTeren(ustCtx.pelne.tereny, sym) : null);
+      if (t && lista.indexOf(t) < 0) {
+        var u = (zrodloSym.symbole || []).filter(function (s) { return normSymbol(s.symbol) === normSymbol(sym); })[0];
+        t._udzial = u && u.udzial; lista.push(t);
+      }
+    });
+    var zr = zrodloSym.zrodlo || 'kimpzp';
     var h = '<div class="legenda-title">Zapisy planu miejscowego dla działki</div>';
     if (lista.length) {
       var opis = zr === 'rysunek'
         ? 'Teren odczytany z rysunku planu (AI) · pewność ' + ({ wysoka: 'wysoka', srednia: 'średnia', niska: 'niska' }[zrodloSym.pewnosc] || 'niska') + ' - potwierdź w wypisie z planu'
-        : zr === 'wybor' ? 'Teren wybrany ręcznie z listy' : 'Symbol terenu z krajowej usługi planów (KIMPZP)';
+        : 'Symbol terenu z krajowej usługi planów (KIMPZP)';
       if (lista.length > 1) opis += ' · działka leży w ' + lista.length + ' terenach';
       lista.forEach(function (t) { h += kartaTerenu(t, (t._udzial && lista.length > 1 ? 'ok. ' + t._udzial + '% działki · ' : '') + opis); });
       if (zr === 'rysunek' && (zrodloSym.obraz || zrodloSym.uzasadnienie)) h += '<div class="ust-rysunek">' +
         (zrodloSym.obraz ? '<a href="' + esc(zrodloSym.obraz) + '" target="_blank" rel="noopener"><img src="' + esc(zrodloSym.obraz) + '" alt="Rysunek planu z zaznaczoną działką"></a>' : '') +
         '<p>' + (zrodloSym.uzasadnienie ? esc(zrodloSym.uzasadnienie) + ' ' : '') + '<span>Granica działki zaznaczona fioletową linią na rysunku planu.</span></p></div>';
-    } else if (symbolStart === 'czeka') {
-      h += '<div class="ust-czeka"><span class="ust-kropka"></span><div><strong>Odczytujemy teren działki z rysunku planu…</strong><p>Usługa krajowa nie podała symbolu terenu - nakładamy granice działki na rysunek planu i sprawdzamy, w którym terenie leży. Zwykle 20-60 sekund.</p></div></div>';
     } else {
-      h += '<p class="mapbox-cap">' + (symbol ? 'Nie znaleźliśmy w uchwale terenu ' + esc(symbol) + '.' : 'Nie udało się automatycznie ustalić terenu działki' + (zrodloSym && zrodloSym.blad ? ' (' + esc(zrodloSym.blad) + ')' : '') + '.') +
-        ' Odczytaj symbol z rysunku planu (mapa w sekcji 04) i wybierz go poniżej.</p>';
+      var powod = ustCtx.bladWybranych || zrodloSym.blad;
+      h += '<p class="mapbox-cap">Nie udało się automatycznie ustalić terenu działki' + (powod ? ' (' + esc(powod) + ')' : '') + '. Odczytaj symbol z rysunku planu (mapa w sekcji 04) i wybierz go poniżej.</p>';
     }
-    // wybor innego terenu - jedna karta naraz zamiast listy wszystkich terenow planu
-    h += '<div class="ust-wybor"><label for="ust-wybor">' + (lista.length ? 'Zobacz zapisy innego terenu planu' : 'Wybierz teren działki') + '</label><select id="ust-wybor"><option value="">- symbol terenu (' + tereny.length + ') -</option>' +
-      tereny.map(function (x, i) { return '<option value="' + i + '">' + esc(x.symbol) + ' - ' + esc(tekstUst(x.przeznaczenie).slice(0, 70)) + '</option>'; }).join('') + '</select></div><div id="ust-wybrany"></div>';
+    // inne tereny planu: lista z pelnego odczytu albo przycisk, ktory go uruchamia
+    var pelne = ustCtx.pelne;
+    if (pelne && pelne.tereny && pelne.tereny.length) {
+      h += '<div class="ust-wybor"><label for="ust-wybor">' + (lista.length ? 'Zobacz zapisy innego terenu planu' : 'Wybierz teren działki') + '</label><select id="ust-wybor"><option value="">- symbol terenu (' + pelne.tereny.length + ') -</option>' +
+        pelne.tereny.map(function (x, i) { return '<option value="' + i + '">' + esc(x.symbol) + ' - ' + esc(tekstUst(x.przeznaczenie).slice(0, 70)) + '</option>'; }).join('') + '</select></div><div id="ust-wybrany"></div>';
+    } else if (lista.length) {
+      h += '<div class="ust-wybor"><button type="button" class="btn" id="ust-wszystkie-btn">Zapisy pozostałych terenów planu</button></div>';
+    }
     var og = (d.plan && Array.isArray(d.plan.ustalenia_ogolne) ? d.plan.ustalenia_ogolne : []).map(tekstUst).filter(Boolean);
     if (og.length) h += '<details class="ust-wszystkie"><summary>Ustalenia ogólne planu (' + og.length + ')</summary><ul class="ust-inne">' + og.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul></details>';
     h += '<p class="ust-uwaga">Zapisy odczytane automatycznie z treści uchwały' + (d.plan && d.plan.uchwala ? ' ' + esc(tekstUst(d.plan.uchwala)) : '') + ' (AI). Przed decyzją zakupową potwierdź je w wypisie i wyrysie z planu z urzędu gminy.' +
@@ -1672,25 +1716,10 @@
     box.innerHTML = h;
     var sel = $('ust-wybor');
     if (sel) sel.addEventListener('change', function () {
-      var x = tereny[+sel.value]; $('ust-wybrany').innerHTML = x ? kartaTerenu(x, lista.length ? 'Inny teren tego planu (nie musi dotyczyć działki)' : 'Teren wybrany z listy') : '';
+      var x = pelne.tereny[+sel.value]; $('ust-wybrany').innerHTML = x ? kartaTerenu(x, lista.length ? 'Inny teren tego planu (nie musi dotyczyć działki)' : 'Teren wybrany z listy') : '';
     });
-    // brak symbolu z uslugi krajowej -> odczyt z rysunku planu (raz na raport)
-    if (!lista.length && !symbol && !symbolStart && ustaleniaBaza && stan.dzialka && stan.dzialka.id) wczytajSymbol(d);
-  }
-  function wczytajSymbol(d) {
-    symbolStart = 'czeka';
-    var id = stan.dzialka.id, proby = 0;
-    var url = zTokenem(ustaleniaBaza + '&dzialka=' + encodeURIComponent(id), id);
-    var koniec = function (z) { symbolStart = true; rysujUstalenia(d, null, z); };
-    rysujUstalenia(d, null, null);
-    var pytaj = function () {
-      fetch(url, { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (w) {
-        if (w.stan === 'gotowe' && w.wynik) { stan.symbolRysunek = w.wynik; w.wynik.zrodlo = 'rysunek'; koniec(w.wynik); return; }
-        if (w.stan === 'w_toku' && ++proby < 30) { setTimeout(pytaj, 5000); return; }
-        koniec({ blad: w.stan === 'wylaczone' ? '' : w.blad });
-      }).catch(function () { if (++proby < 30) setTimeout(pytaj, 7000); else koniec({ blad: 'serwer nie odpowiedział' }); });
-    };
-    pytaj();
+    var btn = $('ust-wszystkie-btn');
+    if (btn) btn.addEventListener('click', function () { pobierzWszystkieTereny(btn); });
   }
 
   // Wynik analizy sieci - pod mapa uzbrojenia (sekcja 07), bez dublowania mapy
