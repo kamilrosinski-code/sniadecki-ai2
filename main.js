@@ -180,10 +180,11 @@
             try { if (!localStorage.getItem('gruntowo_kons_' + ext)) { localStorage.setItem('gruntowo_kons_' + ext, '1');
               window.gruntowoZdarzenie && window.gruntowoZdarzenie('purchase', { transaction_id: ext, currency: 'PLN', value: CENA_KONSULTACJI, items: [{ item_name: 'Konsultacja z ekspertem' }] }); } } catch (e) {}
             try { localStorage.setItem('gruntowo_konsultacja', JSON.stringify({ ext: ext, id: id })); } catch (e) {}
-            komunikatKonsultacji('Płatność przyjęta - dziękujemy!',
-              '<p>Teraz wybierz dogodny termin konsultacji w kalendarzu. Po rezerwacji wrócisz na gruntowo.pl i od razu otworzysz raport rozszerzony działki <strong style="color:#dfc090">' + String(id).replace(/[<>&"]/g, '') + '</strong>.</p>',
-              '<a href="' + ZENCAL_URL + '" style="' + PRZYCISK_ZLOTY + '">Wybierz termin →</a>' +
+            const fp = komunikatKonsultacji('Płatność przyjęta - dziękujemy!',
+              '<p>Teraz wybierz dogodny termin konsultacji w kalendarzu. Po rezerwacji od razu otworzysz raport rozszerzony działki <strong style="color:#dfc090">' + String(id).replace(/[<>&"]/g, '') + '</strong>.</p>',
+              '<a href="' + ZENCAL_URL + '" class="km-kalendarz" style="' + PRZYCISK_ZLOTY + '">Wybierz termin →</a>' +
               (id ? '<a href="' + adresRaportuKonsultacji(ext, id) + '" target="_blank" rel="noopener" style="' + PRZYCISK_JASNY + ';text-align:center;text-decoration:none;box-sizing:border-box">Raport rozszerzony już teraz (nowa karta)</a>' : ''));
+            podepnijKalendarz(fp.querySelector('.km-kalendarz'));
             return;
           }
           if (d && /CANCELED|REJECTED/.test(d.status || '')) {
@@ -202,6 +203,41 @@
     };
     sprawdz();
   }
+  // Kalendarz Zencal w OKNIE nad strona: gruntowo.pl zostaje pod spodem, wiec klient zawsze do niej wraca.
+  // Gdy Zencal ma ustawiona strone podziekowania (?konsultacja=umowiona), okno samo sie zamyka
+  // i strona pod spodem pokazuje potwierdzenie. Gdy przegladarka zablokuje okno - kalendarz w tej karcie.
+  let oknoKalendarza = null;
+  function podepnijKalendarz(a) {
+    if (!a) return;
+    a.addEventListener('click', function (e) {
+      const w = Math.min(980, screen.availWidth - 40), h = Math.min(860, screen.availHeight - 60);
+      const okno = window.open(ZENCAL_URL, 'gruntowo_zencal', 'popup=yes,width=' + w + ',height=' + h + ',left=' + Math.max(0, (screen.availWidth - w) / 2) + ',top=' + Math.max(0, (screen.availHeight - h) / 2));
+      if (!okno) return;   // blokada okien - zwykly link (ta sama karta)
+      e.preventDefault(); oknoKalendarza = okno;
+      const f = komunikatKonsultacji('Wybierz termin w oknie kalendarza',
+        '<p>Kalendarz otworzył się w osobnym oknie. Po zarezerwowaniu terminu wróć tutaj - otworzysz raport rozszerzony działki.</p>',
+        '<button type="button" class="km-gotowe" style="' + PRZYCISK_ZLOTY + '">Zarezerwowałem termin →</button>' +
+        '<button type="button" class="km-znow" style="' + PRZYCISK_JASNY + '">Pokaż kalendarz ponownie</button>');
+      f.querySelector('.km-gotowe').addEventListener('click', function () { try { if (oknoKalendarza && !oknoKalendarza.closed) oknoKalendarza.close(); } catch (e2) {} poRezerwacjiKonsultacji(); });
+      f.querySelector('.km-znow').addEventListener('click', function () {
+        if (oknoKalendarza && !oknoKalendarza.closed) oknoKalendarza.focus();
+        else oknoKalendarza = window.open(ZENCAL_URL, 'gruntowo_zencal', 'popup=yes,width=' + w + ',height=' + h);
+      });
+    });
+  }
+  // Wiadomosc z okna kalendarza (strona podziekowania Zencal otwarta w oknie): rezerwacja zrobiona
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || e.data.gruntowo !== 'konsultacja_umowiona') return;
+    try { if (oknoKalendarza && !oknoKalendarza.closed) oknoKalendarza.close(); } catch (e2) {}
+    poRezerwacjiKonsultacji();
+  });
+  // To samo przez localStorage - dziala tez, gdy Zencal odetnie polaczenie okna ze strona (window.opener)
+  window.addEventListener('storage', function (e) {
+    if (e.key !== 'gruntowo_umowiona' || !oknoKalendarza) return;
+    try { if (!oknoKalendarza.closed) oknoKalendarza.close(); } catch (e2) {}
+    oknoKalendarza = null;
+    poRezerwacjiKonsultacji();
+  });
   // 3) Powrot z kalendarza Zencal po rezerwacji (adres ustawiony w Zencal jako strona podziekowania)
   function poRezerwacjiKonsultacji() {
     window.gruntowoZdarzenie && window.gruntowoZdarzenie('konsultacja_umowiona', {});
@@ -218,7 +254,15 @@
     const p = new URLSearchParams(location.search);
     if (p.get('konsultacja') === 'oplacona' || p.get('konsultacja') === 'umowiona') {
       if (p.get('konsultacja') === 'oplacona') poPlatnosciKonsultacji(p.get('zamowienie') || '', p.get('dzialka') || '');
-      else poRezerwacjiKonsultacji();
+      else {
+        // strona podziekowania otwarta w OKNIE kalendarza -> powiadom strone pod spodem i zamknij okno
+        try { localStorage.setItem('gruntowo_umowiona', String(Date.now())); } catch (e) {}
+        let wOknie = false;
+        try { wOknie = !!(window.opener && !window.opener.closed && window.opener.location.origin === location.origin); } catch (e) { wOknie = false; }
+        if (wOknie) { try { window.opener.postMessage({ gruntowo: 'konsultacja_umowiona' }, location.origin); window.opener.focus(); } catch (e) {} }
+        if (window.name === 'gruntowo_zencal') setTimeout(function () { window.close(); }, 400);   // nasze okno kalendarza
+        poRezerwacjiKonsultacji();
+      }
       try { history.replaceState(null, '', location.pathname); } catch (e) { /* bez znaczenia */ }
       return;
     }
