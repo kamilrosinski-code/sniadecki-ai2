@@ -363,7 +363,65 @@
   // liczy mediane i wypelnia liste transakcji + wartosc orientacyjna.
   // Wypelnia pole "Szacunkowa wartosc dzialki" w sekcji cen (pod mapa/suwakiem).
   // Zmienia sie razem z suwakiem niezabudowane/zabudowane.
-  function ustawSzacCeneBox(wartosc, opis, rodzaj) {
+  // ---- KOREKTA WARTOSCI wg przeznaczenia gruntu ----
+  // Wycena = mediana cen dzialek NIEZABUDOWANYCH w okolicy x powierzchnia. Gdy plan (MPZP/POG) albo ewidencja
+  // przeznacza teren na droge, zielen, las lub wody, taki grunt jest wart ulamek ceny dzialki budowlanej
+  // (zwykle wykup przez gmine / odszkodowanie) - mnozymy wartosc i piszemy dlaczego.
+  // Raport rozszerzony przekazuje wlasna, dokladniejsza ocene (z ewidencja i odczytem rysunku planu).
+  const MNOZNIKI_GRUNTU = {
+    droga: [0.15, 'teren drogi w planie miejscowym (KD)'], zielen: [0.15, 'teren zieleni w planie miejscowym (Z)'],
+    las: [0.2, 'teren lasu w planie miejscowym (ZL)'], wody: [0.1, 'teren wód w planie miejscowym (W)'],
+    pog_zielen: [0.35, 'strefa zieleni i rekreacji w planie ogólnym (SN), bez planu miejscowego'],
+    pog_droga: [0.25, 'strefa komunikacyjna w planie ogólnym (SK), bez planu miejscowego']
+  };
+  // Symbol terenu MPZP -> 'droga' | 'zielen' | 'las' | 'wody' | null (null = teren budowlany albo nieznany)
+  function klasaGruntuZSymbolu(symbol) {
+    const czesci = String(symbol || '').toUpperCase().replace(/^[\d\s.]+/, '').split(/[\/,;+\s]+/)
+      .map(function (x) { return x.replace(/[\d.]/g, '').replace(/^-+|-+$/g, ''); }).filter(Boolean);
+    if (!czesci.length) return null;
+    let klasa = null;
+    for (let i = 0; i < czesci.length; i++) {
+      const c = czesci[i];
+      if (/^(M|U|P|RM|MN|MW|ML|MU|UM)/.test(c)) return null;   // jest funkcja budowlana
+      const k = /^(ZL|L|LS)$/.test(c) ? 'las' : /^K/.test(c) ? 'droga' : /^Z/.test(c) ? 'zielen' : /^W/.test(c) ? 'wody' : null;
+      if (!k) return null;   // inne (np. R, E) - bez korekty
+      if (!klasa) klasa = k;
+    }
+    return klasa;
+  }
+  let bazaWyceny = null, korektaWyceny = null, korektaZRozszerzonego = false;
+  function korektaZKlasy(klasa, zrodlo) {
+    const m = MNOZNIKI_GRUNTU[klasa]; return m ? { klasa: klasa, mnoznik: m[0], powod: m[1], zrodlo: zrodlo || '' } : null;
+  }
+  // Raport bezplatny: korekta z symbolu MPZP, a bez planu - ze strefy POG
+  function przeliczKorekteWlasna() {
+    if (korektaZRozszerzonego) return;
+    const g = window.gruntowoRaport || {};
+    const mp = g.mpzp, pg = g.pog;
+    let k = null;
+    if (mp && mp.status === 'jest') { k = korektaZKlasy(klasaGruntuZSymbolu(g.mpzpSymbol), 'MPZP'); if (k) k.powod = k.powod.replace(/\([A-Z]+\)$/, '(' + String(g.mpzpSymbol).trim() + ')'); }
+    else if (pg && pg.status === 'jest' && (!mp || mp.status === 'brak')) k = korektaZKlasy(pg.kod === 'SN' ? 'pog_zielen' : pg.kod === 'SK' ? 'pog_droga' : '', 'POG');
+    korektaWyceny = k; pokazWartosc();
+  }
+  // Raport rozszerzony: window.gruntowoKorekta({ mnoznik, powod }) albo null
+  window.gruntowoKorekta = function (k) {
+    korektaZRozszerzonego = true;
+    korektaWyceny = k && k.mnoznik > 0 && k.mnoznik < 1 ? k : null;
+    pokazWartosc();
+  };
+  window.GruntowoKlasaGruntu = klasaGruntuZSymbolu;
+  // Wspolne wyswietlanie wartosci: podsumowanie (pods-cena) + pole w sekcji cen + wartosc na gorze raportu rozszerzonego
+  function pokazWartosc(wartosc, opis, rodzaj, zBoxem) {
+    if (wartosc !== undefined) bazaWyceny = { wartosc: wartosc, opis: opis, rodzaj: rodzaj, zBoxem: !!zBoxem };
+    const b = bazaWyceny; if (!b) return;
+    const k = korektaWyceny;
+    const w = k ? Math.round(b.wartosc * k.mnoznik / 100) * 100 : b.wartosc;
+    const o = b.opis + (k ? ' · obniżona do ' + Math.round(k.mnoznik * 100) + '%: ' + k.powod : '');
+    if ($('pods-cena')) $('pods-cena').textContent = w.toLocaleString('pl-PL') + ' zł';
+    if ($('pods-cena-sub')) $('pods-cena-sub').textContent = o;
+    if (b.zBoxem) ustawSzacCeneBox(w, o, b.rodzaj, k);
+  }
+  function ustawSzacCeneBox(wartosc, opis, rodzaj, korekta) {
     const box = $('cena-szac-box');
     if (!box) return;
     if ($('cena-szac-val')) $('cena-szac-val').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
@@ -372,7 +430,7 @@
       $('cena-szac-sub').textContent = opis + ' · porównanie: ' + typ;
     }
     box.style.display = 'block';
-    oglos('gruntowo:wycena', { wartosc: wartosc, opis: opis, rodzaj: rodzaj });
+    oglos('gruntowo:wycena', { wartosc: wartosc, opis: opis, rodzaj: rodzaj, korekta: korekta || null, bazowa: bazaWyceny ? bazaWyceny.wartosc : wartosc });
   }
 
   function pobierzCenyZBazy(lat, lon, powierzchnia, rodzaj) {
@@ -414,14 +472,12 @@
           // Mediana prosto z backendu (juz policzona po stronie serwera)
           if (dane.mediana_cena_m2 && powierzchnia && $('pods-cena')) {
             const wartosc = Math.round(dane.mediana_cena_m2 * powierzchnia);
-            $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
             const promienKm = ((dane.promien_m || 1500) / 1000).toFixed(1).replace('.0', '');
             let opis = 'mediana ' + Math.round(dane.mediana_cena_m2).toLocaleString('pl-PL') +
               ' zł/m² z ' + dane.liczba_transakcji + ' transakcji w promieniu ' + promienKm + ' km';
             if (dane.rozszerzony) opis += ' (poszerzony)';
-            if ($('pods-cena-sub')) $('pods-cena-sub').textContent = opis;
-            // Powtorz wartosc w sekcji cen (aktualizuje sie z suwakiem)
-            ustawSzacCeneBox(wartosc, opis, rodzaj);
+            // podsumowanie + sekcja cen (aktualizuje sie z suwakiem), z korekta wg przeznaczenia gruntu
+            pokazWartosc(wartosc, opis, rodzaj, true);
           }
           rysujTransakcjeZBazy(bliskie.slice(0, 20));
         })
@@ -506,11 +562,7 @@
           // Wartosc orientacyjna w streszczeniu
           if (powierzchnia && $('pods-cena')) {
             const wartosc = Math.round(mediana * powierzchnia);
-            $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
-            if ($('pods-cena-sub')) {
-              $('pods-cena-sub').textContent = 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') +
-                ' zł/m² z ' + stawki.length + ' transakcji w promieniu 1,5 km';
-            }
+            pokazWartosc(wartosc, 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') + ' zł/m² z ' + stawki.length + ' transakcji w promieniu 1,5 km', rodzaj, false);
           }
         }
 
@@ -680,12 +732,7 @@
     stawki.sort(function (a, b) { return a - b; });
     const mediana = stawki[Math.floor(stawki.length / 2)];
     const wartosc = Math.round(mediana * powierzchnia);
-    if ($('pods-cena')) {
-      $('pods-cena').textContent = wartosc.toLocaleString('pl-PL') + ' zł';
-    }
-    if ($('pods-cena-sub')) {
-      $('pods-cena-sub').textContent = 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') + ' zł/m² z ' + statTxt(stawki.length) + ' w okolicy';
-    }
+    pokazWartosc(wartosc, 'mediana ' + Math.round(mediana).toLocaleString('pl-PL') + ' zł/m² z ' + statTxt(stawki.length) + ' w okolicy', 'niezabudowana', false);
   }
   function statTxt(n) { return n + ' transakcji'; }
 
@@ -1512,7 +1559,7 @@
   function pogLegendaRU(wynik) {
     const box = document.getElementById('pog-legenda');
     window.gruntowoRaport.pog = wynik;
-    oglos('gruntowo:pog', wynik);
+    oglos('gruntowo:pog', wynik); przeliczKorekteWlasna();
     if (wynik.status !== 'jest') {
       znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego - zweryfikować w gminie', 'brak');
       if (box && wynik.projekt) {
@@ -1555,7 +1602,7 @@
       + '&INFO_FORMAT=text/xml&FEATURE_COUNT=10&X=50&Y=50';
     const zakoncz = function (wynik) {
       window.gruntowoRaport.pog = wynik;
-      oglos('gruntowo:pog', wynik);
+      oglos('gruntowo:pog', wynik); przeliczKorekteWlasna(); przeliczKorekteWlasna();
       if (wynik.status !== 'jest') {
         znakWodny('map-pog', 'Nie znaleziono planu ogólnego', 'dla działki nie znaleziono planu ogólnego - zweryfikować w gminie', 'brak');
       }
@@ -1652,6 +1699,7 @@
       const wynik = { status: status, html: opisJest ? html : '', pokrycie: pokrycie, zrodlo: opisJest ? 'opis' : (mapaJest ? 'mapa' : (ru ? 'rejestr' : (mesip ? 'mesip' : ''))), ru: ru, projekt: ruProjekt, mesip: mesip };
       window.gruntowoRaport.mpzp = wynik;
       oglos('gruntowo:mpzp', wynik);
+      przeliczKorekteWlasna();
       // Blok z Rejestru Urbanistycznego (uzupelniany o numer uchwaly i PDF z naszego serwera)
       const blokRU = ru ? '<div class="legenda-ru" id="mpzp-ru"><div class="legenda-row"><span>Plan (Rejestr Urbanistyczny)</span><strong class="mpzp-ru-tytul">' + escH(ru.tytul.replace(/^W sprawie uchwalenia\s+/i, '')) + '</strong></div>' +
         (ru.od ? '<div class="legenda-row"><span>Obowiązuje od</span><strong>' + escH(ru.od) + '</strong></div>' : '') +
@@ -1685,6 +1733,8 @@
       znakWodny('map-mpzp', '');
       const dane = opisJest ? parsujLegendeMPZP(html) : { symbol: '', uchwala: '', data: '', link: '' };
       const nazwaPlanu = opisJest ? poleTabeli(html, /^nazwa planu$/i).replace(/^w sprawie uchwalenia\s+/i, '').replace(/^(miejscowego\s+)?planu\s+zagospodarowania\s+przestrzennego\s+/i, '') : '';
+      window.gruntowoRaport.mpzpSymbol = dane.symbol || (mesip && mesip.tereny && mesip.tereny[0] ? mesip.tereny[0].symbol : '');
+      przeliczKorekteWlasna();
       if (dane.symbol || dane.uchwala || dane.link) {
         let h = '<div class="legenda-title">Zapisy planu dla działki</div><div class="legenda-body">';
         if (dane.symbol) h += '<div class="legenda-row"><span>Symbol / przeznaczenie</span><strong>' + dane.symbol + '</strong></div>';

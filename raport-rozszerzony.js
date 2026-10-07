@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261007p';
+  var RAPORT_JS = 'raport.js?v=20261007k';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -1205,6 +1205,35 @@
   // 5. CZYNNIKI -> WERDYKT
   //    typ: 'plus' | 'minus' | 'uwaga'; waga: wplyw na wynik (plus > 0, minus < 0, uwaga 0)
   // =====================================================================
+  // Przeznaczenie gruntu, ktore obniza wartosc: droga / zielen / las / wody (MPZP), strefa SN/SK planu
+  // ogolnego (bez MPZP) albo dzialka drogowa (dr) w ewidencji. Zwraca { klasa, mnoznik, powod, zrodlo } albo null.
+  var MNOZNIK_KLASY = { droga: 0.15, zielen: 0.15, las: 0.2, wody: 0.1 };
+  var OPIS_KLASY = { droga: 'teren drogi', zielen: 'teren zieleni', las: 'teren lasu', wody: 'teren wód' };
+  function klasaSymbolu(sym) { return window.GruntowoKlasaGruntu ? GruntowoKlasaGruntu(sym) : null; }
+  function ocenaGruntu() {
+    var mp = stan.mpzp, pg = stan.pog, uz = stan.uzytki;
+    var planJest = !!(mp && mp.status === 'jest');
+    var drEGiB = !!(uz && !uz.blad && uz.opis && uz.opis.length && uz.opis.every(function (o) { return o.kat === 'drogi'; }));
+    if (planJest) {
+      // kilka terenow na dzialce (odczyt z rysunku z udzialami) -> mnoznik wazony powierzchnia
+      var sr = stan.symbolRysunek;
+      if (!mp.symbol && sr && sr.symbole && sr.symbole.length > 1) {
+        var suma = 0, wagi = 0, klasy = [];
+        sr.symbole.forEach(function (x) { var k = klasaSymbolu(x.symbol), u = x.udzial || (100 / sr.symbole.length); suma += u * (k ? MNOZNIK_KLASY[k] : 1); wagi += u; if (k) klasy.push(x.symbol); });
+        var mw = wagi ? suma / wagi : 1;
+        if (mw < 0.97) return { klasa: 'mieszana', mnoznik: Math.round(mw * 100) / 100, powod: 'część działki to ' + klasy.join(', ') + ' w planie miejscowym', zrodlo: 'MPZP' };
+      }
+      var sym = mp.symbol || (sr && sr.symbole && sr.symbole[0] && sr.symbole[0].symbol) || '';
+      var kl = klasaSymbolu(sym);
+      if (kl) return { klasa: kl, mnoznik: MNOZNIK_KLASY[kl], powod: OPIS_KLASY[kl] + ' w planie miejscowym (' + sym + ')', zrodlo: 'MPZP' };
+    } else if (pg && pg.status === 'jest' && (pg.kod === 'SN' || pg.kod === 'SK') && (!mp || mp.status === 'brak')) {
+      return pg.kod === 'SN' ? { klasa: 'pog_zielen', mnoznik: 0.35, powod: 'strefa zieleni i rekreacji w planie ogólnym (SN), bez planu miejscowego', zrodlo: 'POG' }
+                             : { klasa: 'pog_droga', mnoznik: 0.25, powod: 'strefa komunikacyjna w planie ogólnym (SK), bez planu miejscowego', zrodlo: 'POG' };
+    }
+    if (drEGiB) return { klasa: 'droga', mnoznik: planJest ? 0.35 : 0.2, powod: 'w ewidencji gruntów działka drogowa (dr)', zrodlo: 'EGiB' };
+    return null;
+  }
+
   function zbierzCzynniki() {
     var c = [];
     var dod = function (typ, waga, tytul, opis, zrodlo, limit) { c.push({ typ: typ, waga: waga, tytul: tytul, opis: opis || '', zrodlo: zrodlo || '', limit: limit || 0 }); };
@@ -1218,7 +1247,12 @@
       var pz = mp.przeznaczenie;
       if (pz && pz.ocena === 'budowlane') dod('plus', 22, 'Obowiązuje MPZP - przeznaczenie: ' + pz.etykieta, 'Plan miejscowy przesądza o możliwości zabudowy - nie potrzeba decyzji WZ.' + (mp.symbol ? ' Symbol terenu: ' + mp.symbol + '.' : ''), 'KIMPZP');
       else if (pz && pz.ocena === 'czesciowo') dod('plus', 10, 'Obowiązuje MPZP - przeznaczenie ' + pz.etykieta, 'Zabudowa możliwa w zakresie określonym planem (sprawdź dopuszczalne funkcje).', 'KIMPZP');
-      else if (pz && pz.ocena === 'niebudowlane') dod('minus', -25, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie przewiduje zabudowy mieszkaniowej ani usługowej - zmiana wymaga zmiany planu przez gminę.', 'KIMPZP');
+      else if (pz && pz.ocena === 'niebudowlane') {
+        var og = ocenaGruntu();
+        if (og && og.zrodlo === 'MPZP' && og.klasa !== 'mieszana')
+          dod('minus', -40, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie dopuszcza zabudowy - taki grunt (droga, zieleń, las, wody) jest wart ułamek ceny działki budowlanej; drogi i zieleń publiczną gmina zwykle wykupuje albo wypłaca odszkodowanie. Zmiana wymaga zmiany planu przez gminę.', 'KIMPZP', 20);
+        else dod('minus', -25, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie przewiduje zabudowy mieszkaniowej ani usługowej - zmiana wymaga zmiany planu przez gminę.', 'KIMPZP');
+      }
       else if (mp.pokrycie !== null && mp.pokrycie !== undefined && mp.pokrycie < 60) dod('plus', 4, 'MPZP obejmuje część działki (ok. ' + Math.round(mp.pokrycie) + '%)', 'Pozostała część może wymagać decyzji WZ. Przeznaczenie odczytaj z rysunku planu lub uchwały.', 'KIMPZP');
       else dod('plus', 8, 'Działka objęta obowiązującym MPZP', 'Jasne zasady zabudowy. Przeznaczenie odczytaj z uchwały lub wypisu i wyrysu z planu' + (mp.uchwala ? ' (uchwała ' + mp.uchwala + ')' : '') + '.', 'KIMPZP');
     } else if (mp && mp.status === 'brak') {
@@ -1236,6 +1270,7 @@
     if (pg && pg.status === 'jest') {
       if (pg.kod && /^(SW|SJ|SU|SH)$/.test(pg.kod)) dod('plus', planJest ? 4 : 10, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Kierunek zgodny z zabudową mieszkaniową/usługową.', 'POG');
       else if (pg.kod && /^(SZ|SP)$/.test(pg.kod)) dod('plus', 3, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Zabudowa możliwa w zakresie tej strefy.', 'POG');
+      else if (pg.kod && /^(SN|SK)$/.test(pg.kod) && !planJest) dod('minus', -22, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Strefa zieleni / komunikacyjna - nowy plan miejscowy nie przeznaczy działki pod zabudowę, a decyzji WZ nie będzie. Wartość rynkowa jest wielokrotnie niższa niż działki budowlanej.', 'POG', 30);
       else if (pg.kod) dod('minus', planJest ? -4 : -12, 'Plan ogólny: strefa ' + pg.nazwa + ' (' + pg.kod + ')', 'Strefa nie przewiduje zabudowy mieszkaniowej - utrudnia nowy plan miejscowy i decyzje WZ.', 'POG');
       if (!planJest && pg.ouz) dod('plus', 6, 'Działka w obszarze uzupełnienia zabudowy (POG)', 'Po wejściu w życie planu ogólnego WZ można wydawać tylko w takich obszarach.', 'POG');
       else if (!planJest && pg.status === 'jest' && !pg.ouz && pg.kod) dod('minus', -6, 'Działka poza obszarem uzupełnienia zabudowy', 'Po wejściu w życie planu ogólnego uzyskanie WZ poza tym obszarem nie będzie możliwe.', 'POG');
@@ -1315,6 +1350,12 @@
       if (les.length) dod('minus', planJest ? -6 : -15, 'Na działce są grunty leśne (' + les.map(function (o) { return o.kod; }).join(', ') + ')', 'Zabudowa wymaga zmiany przeznaczenia (MPZP) i wyłączenia z produkcji leśnej - kosztowne i niepewne.', 'EGiB');
       if (wys.length) dod('minus', -8, 'Grunty rolne wysokich klas (' + wys.map(function (o) { return o.kod; }).join(', ') + ')', 'Klasy I-III wymagają zgody na zmianę przeznaczenia i opłat za wyłączenie z produkcji rolnej (poza granicami miast).', 'EGiB');
       if (bud.length && !les.length) dod('plus', 5, 'W ewidencji grunt budowlany/zurbanizowany (' + bud.map(function (o) { return o.kod; }).join(', ') + ')', 'Brak konieczności wyłączania gruntu z produkcji rolnej.', 'EGiB');
+      if (uz.opis.length && uz.opis.every(function (o) { return o.kat === 'drogi'; })) {
+        var planBud = mp && mp.status === 'jest' && mp.przeznaczenie && mp.przeznaczenie.ocena === 'budowlane';
+        dod('minus', planBud ? -15 : -35, 'W ewidencji gruntów to działka drogowa (' + uz.opis.map(function (o) { return o.kod; }).join(', ') + ')',
+          planBud ? 'Plan dopuszcza zabudowę, ale działka jest użytkowana jako droga (np. dojazd wewnętrzny) - sprawdź, czy nie służy innym działkom (służebności, udziały).'
+                  : 'Działka zajęta pod drogę - nie nadaje się pod zabudowę; wartość to zwykle ułamek ceny działki budowlanej (często wykup przez gminę lub odszkodowanie).', 'EGiB', planBud ? 50 : 20);
+      }
     }
 
     // --- Droga i otoczenie ---
@@ -1397,6 +1438,7 @@
   // 6. RYSOWANIE: werdykt (gora + dol), sekcje, lista kontrolna
   // =====================================================================
   function przelicz() {
+    if (window.gruntowoKorekta && stan.dzialka) window.gruntowoKorekta(ocenaGruntu());
     var gotowe = ANALIZY.filter(function (a) { return !!stan[a]; }).length;
     var c = stan.dzialka ? zbierzCzynniki() : [];
     var plusy = c.filter(function (x) { return x.typ === 'plus'; }).sort(function (a, b) { return b.waga - a.waga; });
@@ -1597,6 +1639,12 @@
     czekajUst('Ustalamy teren działki na rysunku planu…', 'Usługa krajowa nie podała symbolu terenu - nakładamy granice działki na rysunek planu i sprawdzamy, w którym terenie leży. Zwykle 20-60 sekund.');
     odpytuj(zTokenem(ustaleniaBaza + '&dzialka=' + encodeURIComponent(idDzialki()), idDzialki()), function (w) {
       w.zrodlo = 'rysunek'; stan.symbolRysunek = w; ustCtx.zrodloSym = w;
+      if (stan.mpzp && !stan.mpzp.symbol && w.symbole && w.symbole[0]) {   // przeznaczenie z rysunku -> werdykt i wycena
+        var dom = w.symbole.slice().sort(function (a, b) { return (b.udzial || 0) - (a.udzial || 0); })[0];
+        stan.mpzp.przeznaczenie = klasyfikujPrzeznaczenie(dom.symbol, '');
+        stan.mpzp.symbolRysunek = dom.symbol;
+        przelicz();
+      }
       ustCtx.symbole = (w.symbole || []).map(function (s) { return s.symbol; }).filter(Boolean);
       pobierzUstalenia(ustCtx.symbole.length ? ustCtx.symbole : null);
     }, function (b) {
