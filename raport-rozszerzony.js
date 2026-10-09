@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261007n';
+  var RAPORT_JS = 'raport.js?v=20261009b';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';
@@ -1225,6 +1225,14 @@
         var mw = wagi ? suma / wagi : 1;
         if (mw < 0.97) return { klasa: 'mieszana', mnoznik: Math.round(mw * 100) / 100, powod: 'część działki to ' + klasy.join(', ') + ' w planie miejscowym', zrodlo: 'MPZP' };
       }
+      // udzialy terenow z probkowania planu w raporcie (gdy brak odczytu z rysunku)
+      var ud = window.GruntowoUdzialyMPZP ? window.GruntowoUdzialyMPZP() : null;
+      if (!(sr && sr.symbole && sr.symbole.length > 1) && ud && ud.length > 1) {
+        var s2 = 0, kl2 = [];
+        ud.forEach(function (x) { var k = klasaSymbolu(x.symbol); s2 += x.udzial * (k ? MNOZNIK_KLASY[k] : 1); if (k) kl2.push('ok. ' + Math.round(x.udzial * 100) + '% ' + OPIS_KLASY[k] + ' (' + x.symbol + ')'); });
+        if (kl2.length && s2 < 0.97) return { klasa: 'mieszana', mnoznik: Math.max(0.05, Math.round(s2 * 100) / 100), powod: kl2.join(', ') + ' w planie miejscowym', zrodlo: 'MPZP' };
+        if (!kl2.length) return null;
+      }
       var sym = mp.symbol || (sr && sr.symbole && sr.symbole[0] && sr.symbole[0].symbol) || '';
       var kl = klasaSymbolu(sym);
       if (kl) return { klasa: kl, mnoznik: MNOZNIK_KLASY[kl], powod: OPIS_KLASY[kl] + ' w planie miejscowym (' + sym + ')', zrodlo: 'MPZP' };
@@ -1253,6 +1261,7 @@
         var og = ocenaGruntu();
         if (og && og.zrodlo === 'MPZP' && og.klasa !== 'mieszana')
           dod('minus', -40, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie dopuszcza zabudowy - taki grunt (droga, zieleń, las, wody) jest wart ułamek ceny działki budowlanej; drogi i zieleń publiczną gmina zwykle wykupuje albo wypłaca odszkodowanie. Zmiana wymaga zmiany planu przez gminę.', 'KIMPZP', 20);
+        else if (og && og.klasa === 'mieszana' && og.mnoznik >= 0.5) dod('minus', -8, 'Część działki poza terenem budowlanym', 'Według planu ' + og.powod + '. Na tej części nie można budować - wycenę obniżono proporcjonalnie do jej powierzchni.', 'KIMPZP');
         else dod('minus', -25, 'MPZP przeznacza teren na: ' + pz.etykieta, 'Plan nie przewiduje zabudowy mieszkaniowej ani usługowej - zmiana wymaga zmiany planu przez gminę.', 'KIMPZP');
       }
       else if (mp.pokrycie !== null && mp.pokrycie !== undefined && mp.pokrycie < 60) dod('plus', 4, 'MPZP obejmuje część działki (ok. ' + Math.round(mp.pokrycie) + '%)', 'Pozostała część może wymagać decyzji WZ. Przeznaczenie odczytaj z rysunku planu lub uchwały.', 'KIMPZP');
@@ -1439,6 +1448,7 @@
   // =====================================================================
   // 6. RYSOWANIE: werdykt (gora + dol), sekcje, lista kontrolna
   // =====================================================================
+  document.addEventListener('gruntowo:mpzp-udzialy', function () { try { przelicz(); } catch (e) { /* raport jeszcze sie laduje */ } });
   function przelicz() {
     if (window.gruntowoKorekta && stan.dzialka) window.gruntowoKorekta(ocenaGruntu());
     var gotowe = ANALIZY.filter(function (a) { return !!stan[a]; }).length;

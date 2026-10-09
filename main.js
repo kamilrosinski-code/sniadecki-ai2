@@ -36,7 +36,7 @@
         '#konsult-modal .km-mapa{margin-top:.6rem;border:1px solid #2a2c26;border-radius:8px;overflow:hidden;flex-shrink:0}#konsult-modal .km-mapa-btn{flex-shrink:0}' +
         '#konsult-modal .km-szukaj{display:flex;gap:.4rem;padding:.4rem}#konsult-modal .km-szukaj input{flex:1;min-width:0;width:auto}' +
         '#konsult-modal .km-szukaj button{background:#c9a96e;color:#14181a;border:0;border-radius:6px;padding:0 .8rem;font:inherit;font-size:.8rem;cursor:pointer}' +
-        '#konsult-modal form.km-start{max-width:560px}#konsult-modal .km-krok{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:#c9a96e;margin:1rem 0 .35rem}' +
+        '#konsult-modal form.km-start{max-width:560px}#konsult-modal .km-krok{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:#c9a96e;margin:1rem 0 .35rem}' +
         '#konsult-modal .km-mapa-box{position:relative;height:300px}#konsult-modal .km-mapa-box .km-mapa-el{height:100%}' +
         '#konsult-modal .km-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:600;pointer-events:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))}' +
         '#konsult-modal .km-dz{display:flex;justify-content:space-between;gap:.5rem;align-items:center;padding:.5rem .6rem;font-size:.8rem;color:#b9c2bc;border-top:1px solid #2a2c26}#konsult-modal .km-dz strong{color:#dfc090}' +
@@ -51,7 +51,7 @@
       document.head.appendChild(st);
       m = document.createElement('div'); m.id = 'konsult-modal';
       m.innerHTML = '<form novalidate><button type="button" class="x" aria-label="Zamknij">×</button>' +
-        '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · 499 zł</div>' +
+        '<div style="font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · 499 zł</div>' +
         '<h3>Umów konsultację</h3><p>Wskaż działkę i zostaw dane. Po opłaceniu (PayU) od razu wybierzesz termin w kalendarzu, a raport rozszerzony działki dostaniesz w cenie konsultacji.</p>' +
         '<div class="km-krok">1 · Wskaż działkę</div>' +
         '<div class="km-mapa"><div class="km-szukaj"><input type="text" placeholder="Miejscowość, np. Janikowo, Komorniki" autocomplete="off"><button type="button">Szukaj</button></div>' +
@@ -159,7 +159,7 @@
         window.gruntowoZdarzenie && window.gruntowoZdarzenie('generate_lead', { formularz: 'konsultacja' });
         // kalendarz od razu; zgloszenie do CRM, gdy numer dzialki sie ustali (najwyzej 8 s czekania w tle)
         const daneCRM = { zrodlo: 'konsultacja', imie: v('imie'), email: v('email'), telefon: v('telefon'), zgoda_kontakt: zgodaK ? 'TAK' : 'NIE',
-          temat: 'Konsultacja z ekspertem - wybór terminu w Zencal', strona_www: v('strona_www'), strona: location.href };
+          temat: 'Konsultacja z ekspertem (bez płatności online) - WYŚLIJ klientowi raport rozszerzony działki', strona_www: v('strona_www'), strona: location.href };
         if (wsp0) { daneCRM.wspolrzedne = wsp0; daneCRM.mapa_link = 'https://www.google.com/maps?q=' + encodeURIComponent(wsp0); }
         Promise.race([dz0 ? Promise.resolve(dz0) : (szuka0 || Promise.resolve('')), new Promise(function (ok) { setTimeout(function () { ok(''); }, 8000); })])
           .then(function (idDz) { daneCRM.dzialka = dz0 || idDz || ''; return doCRM(daneCRM); });
@@ -167,8 +167,13 @@
           .then(function () {   // w Zencal i tak wybiera termin, nawet gdy CRM nie odpowie
             const imie = v('imie').split(' ')[0].replace(/[<>&"]/g, '');
             kalendarzNaStronie(function () {
+              // bez platnosci online nie ma zamowienia, wiec dostep do raportu rozszerzonego nadajemy recznie (link e-mailem);
+              // od razu pokazujemy bezplatny raport wskazanej dzialki
+              const idR = dz0 || kmStan.id;
               komunikatKonsultacji('Dziękujemy' + (imie ? ', ' + imie : '') + '!',
-                '<p>Potwierdzenie spotkania przyjdzie na e-mail. Przed rozmową przygotujemy analizę Twojej działki.</p>',
+                '<p>Potwierdzenie spotkania przyjdzie na e-mail. Raport rozszerzony ' + (idR ? 'działki <strong style="color:#dfc090">' + String(idR).replace(/[<>&"]/g, '') + '</strong> ' : 'wskazanej działki ') +
+                'prześlemy Ci e-mailem przed spotkaniem.</p>' + (idR ? '<p>Już teraz możesz zobaczyć bezpłatny raport tej działki.</p>' : ''),
+                (idR ? '<a href="raport.html?id=' + encodeURIComponent(idR) + '&ok=1" style="' + PRZYCISK_ZLOTY + '">Zobacz raport działki →</a>' : '') +
                 '<button type="button" class="km-wroc" style="' + PRZYCISK_JASNY + '">Wróć na stronę</button>')
                 .querySelector('.km-wroc').addEventListener('click', function () { document.getElementById('konsult-modal').style.display = 'none'; });
             });
@@ -191,7 +196,7 @@
     const m = document.getElementById('konsult-modal'), f = m.querySelector('form');
     f.classList.remove('km-szeroki'); f.classList.remove('km-start');
     f.innerHTML = '<button type="button" class="x" aria-label="Zamknij">×</button>' +
-      '<div style="font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · ' + CENA_KONSULTACJI + ' zł</div>' +
+      '<div style="font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:#c9a96e">Konsultacja z ekspertem · ' + CENA_KONSULTACJI + ' zł</div>' +
       '<h3>' + tytul + '</h3>' + tresc + (przyciski || '');
     return f;
   }
