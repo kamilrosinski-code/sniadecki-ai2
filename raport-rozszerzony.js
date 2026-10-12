@@ -25,7 +25,7 @@
 (function () {
   'use strict';
 
-  var RAPORT_JS = 'raport.js?v=20261009b';
+  var RAPORT_JS = 'raport.js?v=20261012a';
 
   var URL_KIMPZP = 'https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego';
   var URL_POG = 'https://mapy.geoportal.gov.pl/wss/ext/PlanyOgolneGmin';

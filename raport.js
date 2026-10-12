@@ -1620,19 +1620,19 @@
         const wj = { status: 'jest', zrodlo: 'gml', kod: d.strefa ? d.strefa.symbol : '', ouz: !!d.ouz, ozs: !!d.ozs, ouzOzn: d.ouzOzn || '',
           plan: { tytul: d.plan.tytul || 'Plan ogólny gminy', od: d.plan.od || '', link: d.plan.link || '' } };
         if (d.strefa) { wj.oznaczenie = d.strefa.oznaczenie; wj.nazwaStrefy = ruMalymi(d.strefa.nazwa); }
-        if (d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c, false);
+        if (d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c, false, true);
         pogLegendaRU(wj);
         return true;
       }
       const w = { status: d.strefa ? 'projekt' : 'brak', zrodlo: 'gml', kod: d.strefa ? d.strefa.symbol : '', ouz: !!d.ouz, ozs: !!d.ozs, ouzOzn: d.ouzOzn || '',
         projekt: { tytul: d.plan.tytul || 'Projekt planu ogólnego gminy', status: d.plan.etap || 'projekt', link: d.plan.link || '' } };
       if (d.strefa) { w.oznaczenie = d.strefa.oznaczenie; w.nazwaStrefy = ruMalymi(d.strefa.nazwa); }
-      if (d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c, true);
+      if (d.ksztalty && kadr) rysujStrefyPOG(d.ksztalty, kadr, wh, d.strefa ? d.strefa.oznaczenie : '', c, true, true);
       pogLegendaRU(w);
       return true;
     });
   }
-  function rysujStrefyPOG(ksztalty, kadr, wh, strefaDzialki, c, projekt) {
+  function rysujStrefyPOG(ksztalty, kadr, wh, strefaDzialki, c, projekt, zrodloGML) {
     const img = $('map-pog'); const box = img && img.parentElement; if (!box) return;
     const W = wh.W, H = wh.H;
     const px = function (p) { return [((p[0] - kadr[0]) / (kadr[2] - kadr[0])) * W, ((kadr[3] - p[1]) / (kadr[3] - kadr[1])) * H]; };
@@ -1658,7 +1658,7 @@
     svg.innerHTML = sciezki + napisy;
     box.appendChild(svg);
     const cap = box.nextElementSibling && box.nextElementSibling.classList.contains('mapbox-cap') ? box.nextElementSibling : null;
-    if (cap) cap.textContent = projekt ? 'PROJEKT planu ogólnego gminy (jeszcze nie obowiązuje) · Rejestr Urbanistyczny' : 'Strefy planu ogólnego gminy · Rejestr Urbanistyczny';
+    if (cap) cap.textContent = (projekt ? 'Plan ogólny gminy - jeszcze nie obowiązuje' : 'Strefy planu ogólnego gminy') + ' · ' + (zrodloGML ? 'plik GML uchwały / gminy' : 'Rejestr Urbanistyczny');
   }
 
   function pogLegendaRU(wynik) {
@@ -1669,13 +1669,14 @@
       znakWodny('map-pog', '');
       if (!box) return;
       const rp = function (k, v) { return v ? '<div class="legenda-row"><span>' + k + '</span><strong>' + escH(v) + '</strong></div>' : ''; };
-      let hp = '<div class="legenda-title">Projekt planu ogólnego - strefa planistyczna</div><div class="legenda-body">';
-      hp += '<div class="legenda-note"><strong>Plan ogólny jeszcze nie obowiązuje</strong> (' + escH(ruMalymi(wynik.projekt.status || 'w opracowaniu')) + '). Strefa pochodzi z projektu i może się zmienić do uchwalenia.</div>';
+      const uchw = /^uchwalony/i.test(wynik.projekt.status || '');   // plan uchwalony, ale jeszcze nie wszedl w zycie
+      let hp = '<div class="legenda-title">' + (uchw ? 'Plan ogólny uchwalony - strefa planistyczna' : 'Projekt planu ogólnego - strefa planistyczna') + '</div><div class="legenda-body">';
+      hp += '<div class="legenda-note"><strong>Plan ogólny jeszcze nie obowiązuje</strong> (' + escH(ruMalymi(wynik.projekt.status || 'w opracowaniu')) + '). ' + (uchw ? 'Strefa pochodzi z uchwalonego planu, który wkrótce wejdzie w życie.' : 'Strefa pochodzi z projektu i może się zmienić do uchwalenia.') + '</div>';
       hp += rp('Strefa w projekcie', (wynik.oznaczenie || wynik.kod) + (wynik.nazwaStrefy ? ' - ' + wynik.nazwaStrefy.toLowerCase() : (wynik.kod && STREFY_POG[wynik.kod] ? ' - strefa ' + STREFY_POG[wynik.kod] : '')));
       hp += rp('Obszar uzupełnienia zabudowy (projekt)', wynik.ouz ? 'tak' + (wynik.ouzOzn ? ' (' + wynik.ouzOzn + ')' : '') : 'nie');
       if (wynik.ozs) hp += rp('Obszar zabudowy śródmiejskiej (projekt)', 'tak');
       hp += rp('Projekt', ruMalymi(wynik.projekt.tytul));
-      if (wynik.projekt.link) hp += '<a class="legenda-link" href="' + escH(wynik.projekt.link) + '" target="_blank" rel="noopener">' + (wynik.zrodlo === 'gml' ? 'Zobacz projekt na stronie gminy (BIP) →' : 'Zobacz projekt w Rejestrze Urbanistycznym →') + '</a>';
+      if (wynik.projekt.link) hp += '<a class="legenda-link" href="' + escH(wynik.projekt.link) + '" target="_blank" rel="noopener">' + (/legalact/.test(wynik.projekt.link) ? 'Zobacz uchwałę w Dzienniku Urzędowym →' : wynik.zrodlo === 'gml' ? 'Zobacz projekt na stronie gminy (BIP) →' : 'Zobacz projekt w Rejestrze Urbanistycznym →') + '</a>';
       box.innerHTML = hp + '</div>';
       box.style.display = 'block';
       return;
@@ -1703,7 +1704,7 @@
     h += r('Profil dodatkowy', wynik.profilDod);
     if (wynik.plan) h += r('Plan', wynik.plan.tytul + (wynik.plan.od ? ' (obowiązuje od ' + wynik.plan.od + ')' : ''));
     const link = wynik.link || (wynik.plan && wynik.plan.link);
-    if (link) h += '<a class="legenda-link" href="' + escH(link) + '" target="_blank" rel="noopener">Zobacz w Rejestrze Urbanistycznym →</a>';
+    if (link) h += '<a class="legenda-link" href="' + escH(link) + '" target="_blank" rel="noopener">' + (/legalact/.test(link) ? 'Zobacz uchwałę w Dzienniku Urzędowym →' : 'Zobacz w Rejestrze Urbanistycznym →') + '</a>';
     box.innerHTML = h + '</div>';
     box.style.display = 'block';
   }
